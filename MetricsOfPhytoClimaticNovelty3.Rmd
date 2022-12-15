@@ -35,12 +35,12 @@ NamesDtFrm <- data.frame(Acro1 = c("TE", "TDdry", "TDcold", "TN", "ShE", "ShDdry
 
 ## The setup.
 
-Here I will be exploring how we can translate the novelty metrics in [Ordonez et al (2016) Nat Clim Change](https://doi.org/10.1038/nclimate3127) into Conradi et al. (in review) work on Phyto-climates that builds on his work on [Operationalizing the definition of the biome for global change research](https://doi.org/10.1111/nph.16580).
+Here we will be exploring how we can translate the novelty metrics in [Ordonez et al (2016) Nat Clim Change](https://doi.org/10.1038/nclimate3127) into Conradi et al. (in review) work on Phyto-climates that builds on his work on [Operationalizing the definition of the biome for global change research](https://doi.org/10.1111/nph.16580).
 
 
 ## Input information.
 
-Here I will use the maps of growth form (GF) suitability for 14 GF:
+Here we will use the maps of growth form (GF) suitability for 14 GF:
 
 |  **Acronym**  |       **Name**            |
 |---------------|---------------------------|
@@ -128,7 +128,7 @@ This Suitability is based on a Eco-physiological species distribution Model (*IN
 
 Now with the adequate temporal data (i.e., **Current & Past conditions**) we can estimate novelty. As stated above, the Current conditions vs. ALL past cells approach to estimate novelty means that for each current cell, we will have a large number of possible contrasts based on an adequate distance metric (e.g., (Squared) chord-distance or $\chi^2$-distance for composition data; Euclidean distance for uncorrelated environmental data, or Mahalanobis distance for correlated environmental data).
 
-Given that the data we have for growth-form suitability is the proportion of species within a group for which the evaluated cell has suitable conditions (similar to proportion of species) I will use the Min Chord distance as suggested by [Simpson (2007)](https://doi.org/10.18637/jss.v022.i02), [Overpeck et al. 1985](https://doi.org/10.1016/0033-5894(85)90074-2) and [Gavin et al. 2003](https://doi.org/10.1016/S0033-5894(03)00088-7).
+Given that the data we have for growth-form suitability is the proportion of species within a group for which the evaluated cell has suitable conditions (similar to proportion of species) we will use the Min Chord distance as suggested by [Simpson (2007)](https://doi.org/10.18637/jss.v022.i02), [Overpeck et al. 1985](https://doi.org/10.1016/0033-5894(85)90074-2) and [Gavin et al. 2003](https://doi.org/10.1016/S0033-5894(03)00088-7).
 
 The chord distance between samples $j$ and $k$, $d_{jk}$, is:
 
@@ -188,7 +188,7 @@ plot(CordDistRast,
      main = "Min chord distance")
 ```
 
-I also do this estimation using a Chi-Squared distance:
+We also do this estimation using a Chi-Squared distance:
 
 ```{r ChiDistEst, fig.cap="**Fig 4**. *Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"}
 # Calculate the Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
@@ -244,7 +244,7 @@ The Next step in producing a novelty map is defining the a suitable dissimilarit
 
 One way to do this, as suggested by [Simpson (2007)](https://doi.org/10.18637/jss.v022.i02) in the manual for `anaolgue`, is to use use Monte Carlo simulation to determine a dissimilarity threshold that is unlikely to have occurred by chance. For this, two samples are drawn, at random, from the training set (i.e., the modern sample) and the dissimilarity between these two samples is recorded. This process is repeated many times to generate a randomization distribution of dissimilarity values expected by random comparison of samples. The dissimilarity value that achieves at a significance level of 0.01 can be determined by selecting the 0.01 probability percentile of the randomization distribution (the 1st percentile). Is important to note that to define this value at a 0.01 significance level, a minimum of 100 permutations are needed, so the threshold value is one that occurred one time in a hundred.
 
-Below, I implement this procedure using the `mcarlo` function form the `analogue` package, using 1000 permutations:
+Below, we implement this procedure using the `mcarlo` function form the `analogue` package, using 1000 permutations:
 
 ```{r CordDmcarlothresh}
 if(!"CordDmcarlo.rds"%in%dir("./Data/Novelty/")){
@@ -333,7 +333,7 @@ ROC curves are drawn using two measures of performance:
   
 Here, like in species distribution modelling, the goal is to define a cut-off value that minimizes the *false positive error* (classifying two non-analogous samples as analogues) and the *false negative error* (classifying two analogous samples as non-analogues). That point is where misclassifications are low: the True Positive Rate (i.e. sensitivity) are high, and Positive Rate (1-specificity) are low.  
 
-Below, I implement this procedure using the `roc` function form the `analogue` package, using 1000 permutations:
+Below, we implement this procedure using the `roc` function form the `analogue` package, using 1000 permutations:
 
 ```{r CordDROCthreshold}
 if(!"CordDROC.rds"%in%dir("./Data/Novelty/")){
@@ -399,8 +399,8 @@ if(!"ChiDROC.rds"%in%dir("./Data/Novelty/")){
   a<-Sys.time()  # Clocks ~5Min
   Map0k.ChiDist <- analogue::distance(Maps0kaBPTble, method = "chi.square")
   Map0k.ChiD.ROC <- roc(Map0k.ChiDist, # current time Taxon data.frame 
-                   groups = BiomeID[as.numeric(row.names(Maps0kaBPTble)),] # vector of group memberships
-                   )
+                        groups = BiomeID[as.numeric(row.names(Maps0kaBPTble)),] # vector of group memberships
+                        )
   rm(Map0k.ChiDist);gc()
   a-Sys.time()
   saveRDS(Map0k.ChiD.ROC,"./Data/Novelty/ChiDROC.rds")
@@ -445,7 +445,7 @@ Here, we apply this approach to each growth form suitability maps rather than to
 
 For this we start by estimating the temporal gradient (i.e., $\frac{\text{d}c}{\text{d}t}$ ) that represents projected change per unit time as [Dobrowski et al (2012)]( https://doi.org/10.1111/gcb.12026) and [Ordonez et al (2016)](https://doi.org/10.1038/nclimate3127) using a generalised least squares regression on suitability maps for the 21kaBP to 0kaBP period for each cell with a autocorrelation structure of order one (AR1 model). Significance of trends are estimated based on the p-value of the model regression slope.
 
-Below I show how this is estimated by the *Evergreen* growth form.
+Below we show how this is estimated by the *Evergreen* growth form.
 
 ```{r TempGradEveGrn, fig.cap="**Fig 9**. *Temporal heterogeneity (%-change per 100yrs) for Evergreen trees*"}
 ## Make suitability raster for Evergreen trees for all time steps [21kaBP-1950]
@@ -462,41 +462,41 @@ rm(MapsEvergreenlist);gc()
 
 if(!"EvergreenTempChng.tif"%in%dir("./Data/Velocity")){
 # Generate a SpatRaster that estimates the temporal trend/significance for each cell using the app function from terra
-a<-Sys.time() # clacls  ~2mis in 10 cores
-TempHetEvergreen <- app(MapsEvergreen,
-                        fun = function(x){
-                          require(nlme)
-                          if(sum(x,na.rm=T)!=0 & sum(x>0,na.rm=T)>3){
-                              tmbDtaFrm <- data.frame(prop = x[1:44],
-                                                      Time = c(1:44)
-                                                      )
-                              TimMod <- gls(prop~Time, data = tmbDtaFrm,
-                                            correlation = corARMA(p=1),
-                                            method ="ML")
-                              Out <- coef(summary(TimMod))["Time",c("Value","Std.Error","p-value")]
-                              }
-                          else{
-                              Out <- c(0,0,1)
-                              names(Out) <- c("Value","Std.Error","p-value")
-                              }
-                          return(Out)
-                          },
-                        cores=10 # the function is run automatically in parrallel in 10 cores
-                        )
-Sys.time()-a
+  a<-Sys.time() # clacls  ~2mis in 10 cores
+  TempHetEvergreen <- app(MapsEvergreen,
+                          fun = function(x){
+                            require(nlme)
+                            if(sum(x,na.rm=T)!=0 & sum(x>0,na.rm=T)>3){
+                                tmbDtaFrm <- data.frame(prop = x[1:44],
+                                                        Time = c(1:44)
+                                                        )
+                                TimMod <- gls(prop~Time, data = tmbDtaFrm,
+                                              correlation = corARMA(p=1),
+                                              method ="ML")
+                                Out <- coef(summary(TimMod))["Time",c("Value","Std.Error","p-value")]
+                                }
+                            else{
+                                Out <- c(0,0,1)
+                                names(Out) <- c("Value","Std.Error","p-value")
+                                }
+                            return(Out)
+                            },
+                          cores=10 # the function is run automatically in parrallel in 10 cores
+                          )
+  Sys.time()-a
 
 # Mask out oceans
-TempHetEvergreen <- mask(TempHetEvergreen,
-                         MapsEvergreen)
+  TempHetEvergreen <- mask(TempHetEvergreen,
+                           MapsEvergreen)
 
 # Turn the Temporal trend per cell into a raster
 # Save the values of the slope (the units will be % change per 100yrs so the values are divided by 5)
-TempHetEvGrnRast <- TempHetEvergreen[[1]]/5
-names(TempHetEvGrnRast) <- "TempTrend" # change layer name
+  TempHetEvGrnRast <- TempHetEvergreen[[1]]/5
+  names(TempHetEvGrnRast) <- "TempTrend" # change layer name
 # Save the Raster file
-writeRaster(TempHetEvGrnRast,
-            "./Data/Velocity/EvergreenTempChng.tif",
-            overwrite=TRUE)
+  writeRaster(TempHetEvGrnRast,
+              "./Data/Velocity/EvergreenTempChng.tif",
+              overwrite=TRUE)
 }
 if(!"TempHetEvGrnRast"%in%ls()){
   TempHetEvGrnRast <- rast("./Data/Velocity/EvergreenTempChng.tif")
@@ -631,9 +631,16 @@ With these two variables (that is `SpacHetEvGrnRast` quantifying the spatial het
 if(!"EvergreenVel_21to0kaBP.tif"%in%dir("./Data/Velocity/")){
 # Estimate velocity
 VelocityEvGrn <-  abs(TempHetEvGrnRast)/SpacHetEvGrnRast
-hist(log10(VelocityEvGrn))
-# Make the velocity for very slow areas (~1e-4km/centennial) zero
-VelocityEvGrn[which(SpacHetEvGrnRast[]<0.0001)] <- 0
+
+# Make the velocity for very slow areas (~1e-3km/centennial) zero
+VelocityEvGrn[which(VelocityEvGrn[]<0.001)] <- 0
+
+# Make the velocity for flat areas 100km/centennial
+VelocityEvGrn[which(SpacHetEvGrnRast[]==0)] <- 101
+# Make the velocity for very fast areas (>200km/centennial) km/centennial
+VelocityEvGrn[which(VelocityEvGrn[]>100)] <- 101
+
+hist(VelocityEvGrn)
 
 # Save the Raster file
 writeRaster(VelocityEvGrn,
@@ -645,11 +652,313 @@ if(!"VelocityEvGrn"%in%ls()){
 }
 
 #plot the Velocity
-plot(VelocityEvGrn,
+plot(log10(VelocityEvGrn),
      plg = list(title = 'km per 100yrs'),
      main = "Suitability velocity [Evergreen trees]",
      cex.main = 1.5,
      xpd=NA)
 ```
+
+
+Now we estimate the velocity for the other growth forms. For this, we will divide the process in Three stages:
+
+**First**: Estimate the temporal gradients using a generalised least squares regression on suitability maps for the 21kaBP to 0kaBP period for each cell with a autocorrelation structure of order one (AR1 model).
+
+```{r TempGradAllGF, fig.cap="**Fig 11**. *Temporal gradinets for all evaluated growth forms*"}
+# We will loop over all GF names
+for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
+  if(!paste0(GF.Use,"_TempChng.tif")%in%dir("./Data/Velocity/")){
+# Make suitability raster for the selected GF
+    MapsList <- lapply(1:45,
+                       function(i){
+                         rasterize(x = as.matrix(xy), # points as a matrix
+                                   y = cr.ea, #  template raster
+                                   values = pml[[i]][,GF.Use] # Values to aggregate
+                                  )
+                         })
+# make a multi-band SpatRaster
+    MapsPer.GF <- do.call("c",MapsList)
+    rm(MapsList);gc()
+
+# Generate a SpatRaster that estimates the temporal trend/significance for each cell using the app function from terra
+    TempHet <- app(MapsPer.GF,
+                   fun = function(x){
+                            require(nlme) 
+                     # Filters to ensure convergence
+                            if(sum(x,na.rm=T)!=0 & # locations with values
+                               sum(x>0,na.rm=T)>3 & # more than three values above 0
+                               length(unique(x)) > 2){ # more tna just two unique values ove time.
+                              
+                             tmbDtaFrm <- data.frame(prop = x[1:44],
+                                                     Time = c(1:44))
+                             TimMod <- gls(prop~Time, data = tmbDtaFrm,
+                                           correlation = corARMA(p=1),#corAR1(form = ~ Time)
+                                           method ="ML")
+                             Out <- coef(summary(TimMod))["Time",c("Value","Std.Error","p-value")]
+                            }
+                            else{
+                              if(is.na(x[1])){
+                                Out <- c(NA,NA,NA)
+                                names(Out) <- c("Value","Std.Error","p-value")
+                              }
+                              else{
+                                Out <- c(0,0,1)
+                                names(Out) <- c("Value","Std.Error","p-value")
+                                }
+                             }
+                             return(Out)
+                           },
+                     cores=10 # the function is run automatically in parrallel in 10 cores
+                   )
+# Save the values of the slope (the units will be % change per 100yrs so the values are divided by 5)
+    TempHetRast <- TempHet[[1]]/5
+    names(TempHetRast) <- paste0(GF.Use,"_TempTrend") # change layer name
+# Save the Raster file
+    writeRaster(TempHetRast,
+                paste0("./Data/Velocity/",GF.Use,"_TempChng.tif"),
+              overwrite=TRUE)
+    rm(TempHet);rm(TempHetRast)
+  }
+}
+
+# Load and plot the Temporal gradients as a list
+TempHetAllList <- lapply(NamesDtFrm$Acro2,
+                         function(GF.Use){
+                           rast(paste0("./Data/Velocity/",GF.Use,"_TempChng.tif"))
+                         })
+
+# Make a multi-band SpatRaster
+TempHetAll <- do.call("c",TempHetAllList)
+names(TempHetAll) <- NamesDtFrm$Name
+rm(TempHetAllList);gc()
+
+# plot the Temporal gradient
+par(oma=c(0,0,2,0))
+plot(TempHetAll)
+mtext("Temporal gradient [% per 100 yrs]",
+      font =2,
+      cex=1.5,
+      outer = TRUE)
+```
+
+**Second**: Estimate the spatial gradients (magnitude and direction) using a using the maximum average technique [Burrough & McDonnell 1998].
+
+
+```{r SpaceGradAllGF, fig.cap="**Fig 12a**. *Spatial gradinets for all evaluated growth forms*"}
+# We will loop over all GF names
+for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
+  if(!paste0(GF.Use,"_SpatHet.tif")%in%dir("./Data/Velocity/")){
+# Make suitability raster for the selected GF for time 1
+    MapsPer.GF <- rasterize(x = as.matrix(xy), # points as a matrix
+                                   y = cr.ea, #  template raster
+                                   values = pml[[1]][,GF.Use] # Values to aggregate
+                                  )
+    names(MapsPer.GF) <- GF.Use
+# Generate a SpatRaster that estimates the spatial trend for each cell using the focal function from terra
+# West-east gradients
+  EstWestChng <- focal(MapsPer.GF,# Input Raster
+                       w = 3, # Neighborhood matrix
+                       fun = function(x){mean(c(x[2]-x[1],x[3]-x[2],
+                                                x[5]-x[4],x[6]-x[5],
+                                                x[8]-x[7],x[9]-x[8]),
+                                                na.rm=TRUE)/47
+                                         })
+# North-South gradients - (negative change means northward movement)
+  NrthSthChng <- focal(MapsPer.GF,# Input Raster
+                        w = 3, # Neighborhood matrix
+                       fun = function(x){mean(c(x[1]-x[4],x[4]-x[7],
+                                                x[2]-x[5],x[5]-x[8],
+                                                x[3]-x[6],x[6]-x[9]),
+                                                na.rm=TRUE)/65.9
+                                         })
+# Vector sum of the N-S and W-E gradients --> the magnitude of the spatial gradient
+  SpacHetRast <- sqrt((NrthSthChng^2)+(EstWestChng^2))
+  names(SpacHetRast) <- paste0(GF.Use,"_SpatHet") # change layer name
+# Save the Raster file
+    writeRaster(SpacHetRast,
+                paste0("./Data/Velocity/",GF.Use,"_SpatHet.tif"),
+              overwrite=TRUE)
+    rm(MapsPer.GF);rm(EstWestChng);rm(NrthSthChng);rm(SpacHetRast);gc()
+  }
+}
+
+# Load and plot the spatial gradients as a list
+SpatHetAllList <- lapply(NamesDtFrm$Acro2,
+                         function(GF.Use){
+                           rast(paste0("./Data/Velocity/",GF.Use,"_SpatHet.tif"))
+                         })
+
+# Make a multi-band SpatRaster
+SpatHetAll <- do.call("c",SpatHetAllList)
+names(SpatHetAll) <- NamesDtFrm$Name
+rm(SpatHetAllList);gc()
+
+# plot the Spatial gradient
+par(oma=c(0,0,2,0))
+plot(SpatHetAll)
+mtext("Spatial gradient [% per km]",
+      font =2,
+      cex=1.5,
+      outer = TRUE)
+```
+ 
+```{r BearingAllGF, fig.cap="**Fig 12b*. *Bearing of the spatial gradinets for all evaluated growth forms*"}
+
+# We will loop over all GF names
+for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
+  if(!paste0(GF.Use,"_Bearing.tif")%in%dir("./Data/Velocity/")){
+# Make suitability raster for the selected GF for time 1
+    MapsPer.GF <- rasterize(x = as.matrix(xy), # points as a matrix
+                                   y = cr.ea, #  template raster
+                                   values = pml[[1]][,GF.Use] # Values to aggregate
+                                  )
+    names(MapsPer.GF) <- GF.Use
+# Generate a SpatRaster that estimates the bearing of the spatial trend for each cell using the focal function from terra
+
+# West-east gradients
+  EstWestChng <- focal(MapsPer.GF,# Input Raster
+                       w = 3, # Neighborhood matrix
+                       fun = function(x){mean(c(x[2]-x[1],x[3]-x[2],
+                                                x[5]-x[4],x[6]-x[5],
+                                                x[8]-x[7],x[9]-x[8]),
+                                                na.rm=TRUE)/47
+                                         })
+# North-South gradients - Norther hemisphere (negative change means equatorial movement)
+  MapsPer.GF.North <- crop(MapsPer.GF,
+                           ext(as.numeric(c(ext(MapsPer.GF)[c(1,2)],
+                                            0,
+                                            ext(MapsPer.GF)[4]))))
+  NrthSthChng1 <- focal(MapsPer.GF.North,# Input Raster
+                             w = 3, # Neighborhood matrix
+                             fun = function(x){mean(c(x[1]-x[4],x[4]-x[7],
+                                                      x[2]-x[5],x[5]-x[8],
+                                                      x[3]-x[6],x[6]-x[9]),
+                                                    na.rm=TRUE)/65.9
+                                              })
+# North-South gradients - South hemisphere  (negative change means equatorial movement)
+  MapsPer.GF.South <- crop(MapsPer.GF,
+                           ext(as.numeric(c(ext(MapsPer.GF)[c(1,2,3)],0))))
+  NrthSthChng2 <- focal(MapsPer.GF.South,# Input Raster
+                             w = 3, # Neighborhood matrix
+                             fun = function(x){mean(c(x[4]-x[1],x[7]-x[4],
+                                                      x[5]-x[2],x[8]-x[5],
+                                                      x[6]-x[3],x[9]-x[6]),
+                                                    na.rm=TRUE)/65.9
+                                              })
+# Mosaic the North-South gradients 
+  NrthSthChng<- mosaic(NrthSthChng1,NrthSthChng2)
+  rm(list=c("NrthSthChng1","NrthSthChng2"));gc()
+# Estimating the bearing of the velocity vector based on initial conditions
+  BearingRast <- atan2(x=EstWestChng, y= NrthSthChng)*(180/pi)
+  rm(list=c("EstWestChng","NrthSthChng"));gc()
+# make the bearing a value between 0 and 360
+  BearingRast <- app(BearingRast,
+                          fun=function(x){ifelse(x<0,
+                                                 360+x,
+                                                 x)})
+# Time integrated bearing The direction of change would change if the temporal tendency is to a reduction in the variable of interest
+# Load the temporal trend  
+  TempHetRast <- rast(paste0("./Data/Velocity/",GF.Use,"_TempChng.tif"))
+# Turn acording to the temporal trend
+  BearingRast2 <- app(c(BearingRast,TempHetRast),
+                           function(x){
+                              ifelse(is.na(x[1]),
+                                     NA,
+                                     ifelse(c(x[2]<0 & x[1] <= 180),
+                                            x[1] + 180,
+                                            ifelse(c(x[2]<0 & x[1]>180),
+                                                   x[1] - 180,
+                                                   x[1])))
+                              },
+                            cores=10 # the function is run automatically in parallel in 10 cores
+                            )
+  rm(list=c("BearingRast","TempHetRast"));gc()
+# Save the Raster file
+    writeRaster(BearingRast2,
+                paste0("./Data/Velocity/",GF.Use,"_Bearing.tif"),
+                overwrite=TRUE)
+    rm(list=c("BearingRast2"));gc()
+    
+  }
+}
+
+# Load and plot the Temporal gradients as a list
+BearingAllList <- lapply(NamesDtFrm$Acro2,
+                         function(GF.Use){
+                           rast(paste0("./Data/Velocity/",GF.Use,"_Bearing.tif"))
+                         })
+
+# Make a multi-band SpatRaster
+BearingAll <- do.call("c",BearingAllList)
+names(BearingAll) <- NamesDtFrm$Name
+rm(BearingAllList);gc()
+
+# plot the Bearing gradient
+par(oma=c(0,0,2,0))
+plot(BearingAll)
+mtext("Bearing  [Degrees]",
+      font =2,
+      cex=1.5,
+      outer = TRUE)
+```
+
+**Tird**: Estimate the lvelocity magnitude (i.e., speed) as the ratio between the temporal and spatial gradienet.
+
+ 
+```{r Velocity AllGF, fig.cap="**Fig 13*. *Velocity for all evaluated growth forms*"}
+
+# We will loop over all GF names
+for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
+  if(!paste0(GF.Use,"_Velocity.tif")%in%dir("./Data/Velocity/")){
+    
+# Load the Temporal gradients as a list
+    TempHet <- rast(paste0("./Data/Velocity/",GF.Use,"_TempChng.tif"))
+
+# Load and plot the Temporal gradients as a list
+    SpatHet <- rast(paste0("./Data/Velocity/",GF.Use,"_SpatHet.tif"))
+
+# Estimate the velocity of change
+    Velocity <-  abs(TempHet)/SpatHet
+
+# Make the velocity for very slow areas (~1e-3km/centennial) zero
+    Velocity[which(Velocity[]<0.001)] <- 0.001
+# Make the velocity for flat areas 100km/centennial
+    Velocity[which(SpatHet[]==0)] <- 101
+# Make the velocity for very fast areas (>200km/centennial) km/centennial
+    Velocity[which(Velocity[]>1000)] <- 101
+# Save the Raster file
+    writeRaster(Velocity,
+                paste0("./Data/Velocity/",GF.Use,"_Velocity.tif"),
+                overwrite=TRUE)
+  }
+}
+
+# Load and plot the Temporal gradients as a list
+VelocityAllList <- lapply(NamesDtFrm$Acro2,
+                         function(GF.Use){
+                           rast(paste0("./Data/Velocity/",GF.Use,"_Velocity.tif"))
+                         })
+
+# Make a multi-band SpatRaster
+VelocityAll <- do.call("c",VelocityAllList)
+names(VelocityAll) <- NamesDtFrm$Name
+rm(VelocityAllList);gc()
+
+# plot the Bearing gradient
+par(oma=c(0,0,2,0))
+plot(log10(VelocityAll))
+mtext("log10-Velocity  [km per 100yrs]",
+      font =2,
+      cex=1.5,
+      outer = TRUE)
+```
+
+
+# TO DO
+
+1) Add ice sheet covers to the maps
+2) Consider the spatial heterogeneity as the Avg of the first 3 periods
+3) Temporal gradients as the avg of changes between consecutive 500 yrs.
+4) Analog vector trajectory
 
 
