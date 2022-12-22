@@ -26,10 +26,35 @@ pml <- readRDS("./Data/gf_suitab_matrices.rds")
 xy <- readRDS("./Data/cell_coordinates.rds")
 ### Raster template
 cr.ea <- rast("./Data/raster_template.tif")
+## Ice sheets 21ka BP
+if(!"/IceCover21kaBP.tif"%in%dir("./Data")){
+# Load the raster
+  Ice <- raster::raster("./Data/ice6g_c [PMIP4]/ICE-6G-C/I6_C.VM5a_10min.21.nc",
+                      varname = "sftgif")
+# Rotate so it is not 0-360 but -180 to 180
+  Ice <- rotate(Ice)
+# Reproject to the same projection as the Raster template
+  Ice <- raster::projectRaster(Ice,
+                 cr.ea,
+                 method = "ngb")
+# Re sample so it alings with the Raster template
+  Ice <- raster::resample(Ice,
+                 raster::raster("./Data/raster_template.tif"),
+                 method = "ngb")
+# Save teh raster  
+  raster::writeRaster(Ice,"./Data/IceCover21kaBP.tif",format="GTiff", overwrite=TRUE)
+}
+Ice <- rast("./Data/IceCover21kaBP.tif") 
+
+
+
 ### Matrix of names
 NamesDtFrm <- data.frame(Acro1 = c("TE", "TDdry", "TDcold", "TN", "ShE", "ShDdry", "ShDcold","H","Geo", "Thero", "GC3", "GC4", "Suc", "Clim"),
                          Acro2 = c("TE", "TD_dry", "TD_cold", "TN", "ShrE", "ShrD_dry", "ShrD_cold", "H","HGeo", "HThero", "G_C3", "G_C4", "Suc", "C"),
                          Name = c("Evergreen trees", "Drought-deciduous trees", "Cold-deciduous trees", "Needleleaf trees", "Evergreen shrubs", "Drought-deciduous shrubs", "Cold-deciduous shrubs","Herbs", "Geophytes", "Therophytes", "C3 grasses", "C4 grasses", "Succulents", "Climbers"))
+
+
+
 
 ```
 
