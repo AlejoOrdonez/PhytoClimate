@@ -11,7 +11,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ## 
 #setwd("~/Dropbox/Other Papers in progress/[Conradi] Phytoclimate  Velocity")
-setwd("~/Library/CloudStorage/Dropbox/Other Papers in progress/[Conradi] Phytoclimate  Velocity")
+#setwd("~/Library/CloudStorage/Dropbox/Other Papers in progress/[Conradi] Phytoclimate  Velocity/PhytoClimate")
 #setwd("D:/Alejo/PhytoClimates")
 ## Load the required packages
 library(terra)
@@ -630,22 +630,20 @@ With these two variables (that is `SpacHetEvGrnRast` quantifying the spatial het
 
 if(!"EvergreenVel_21to0kaBP.tif"%in%dir("./Data/Velocity/")){
 # Estimate velocity
-VelocityEvGrn <-  abs(TempHetEvGrnRast)/SpacHetEvGrnRast
+  VelocityEvGrn <-  abs(TempHetEvGrnRast)/SpacHetEvGrnRast
 
 # Make the velocity for very slow areas (~1e-3km/centennial) zero
-VelocityEvGrn[which(VelocityEvGrn[]<0.001)] <- 0
+  VelocityEvGrn[which(VelocityEvGrn[]<0.001)] <- 0
 
 # Make the velocity for flat areas 100km/centennial
-VelocityEvGrn[which(SpacHetEvGrnRast[]==0)] <- 101
+  VelocityEvGrn[which(SpacHetEvGrnRast[]==0)] <- 101
 # Make the velocity for very fast areas (>200km/centennial) km/centennial
-VelocityEvGrn[which(VelocityEvGrn[]>100)] <- 101
-
-hist(VelocityEvGrn)
+  VelocityEvGrn[which(VelocityEvGrn[]>100)] <- 101
 
 # Save the Raster file
-writeRaster(VelocityEvGrn,
-            "./Data/Velocity/EvergreenVel_21to0kaBP.tif",
-            overwrite=TRUE)
+  writeRaster(VelocityEvGrn,
+              "./Data/Velocity/EvergreenVel_21to0kaBP.tif",
+              overwrite=TRUE)
 }
 if(!"VelocityEvGrn"%in%ls()){
   VelocityEvGrn <- rast("./Data/Velocity/EvergreenVel_21to0kaBP.tif")
@@ -667,7 +665,7 @@ Now we estimate the velocity for the other growth forms. For this, we will divid
 ```{r TempGradAllGF, fig.cap="**Fig 11**. *Temporal gradinets for all evaluated growth forms*"}
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
-  if(!paste0(GF.Use,"_TempChng.tif")%in%dir("./Data/Velocity/")){
+  if(!paste0(GF.Use,"_TempChng.tif")%in%dir("./Data/Velocity/TempChng/")){
 # Make suitability raster for the selected GF
     MapsList <- lapply(1:45,
                        function(i){
@@ -715,7 +713,7 @@ for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
     names(TempHetRast) <- paste0(GF.Use,"_TempTrend") # change layer name
 # Save the Raster file
     writeRaster(TempHetRast,
-                paste0("./Data/Velocity/",GF.Use,"_TempChng.tif"),
+                paste0("./Data/Velocity/TempChng/",GF.Use,"_TempChng.tif"),
               overwrite=TRUE)
     rm(TempHet);rm(TempHetRast)
   }
@@ -724,7 +722,7 @@ for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
 # Load and plot the Temporal gradients as a list
 TempHetAllList <- lapply(NamesDtFrm$Acro2,
                          function(GF.Use){
-                           rast(paste0("./Data/Velocity/",GF.Use,"_TempChng.tif"))
+                           rast(paste0("./Data/Velocity/TempChng/",GF.Use,"_TempChng.tif"))
                          })
 
 # Make a multi-band SpatRaster
@@ -747,7 +745,7 @@ mtext("Temporal gradient [% per 100 yrs]",
 ```{r SpaceGradAllGF, fig.cap="**Fig 12a**. *Spatial gradinets for all evaluated growth forms*"}
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
-  if(!paste0(GF.Use,"_SpatHet.tif")%in%dir("./Data/Velocity/")){
+  if(!paste0(GF.Use,"_SpatHet.tif")%in%dir("./Data/Velocity/SpatHet/")){
 # Make suitability raster for the selected GF for time 1
     MapsPer.GF <- rasterize(x = as.matrix(xy), # points as a matrix
                                    y = cr.ea, #  template raster
@@ -776,7 +774,7 @@ for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
   names(SpacHetRast) <- paste0(GF.Use,"_SpatHet") # change layer name
 # Save the Raster file
     writeRaster(SpacHetRast,
-                paste0("./Data/Velocity/",GF.Use,"_SpatHet.tif"),
+                paste0("./Data/Velocity/SpatHet/",GF.Use,"_SpatHet.tif"),
               overwrite=TRUE)
     rm(MapsPer.GF);rm(EstWestChng);rm(NrthSthChng);rm(SpacHetRast);gc()
   }
@@ -785,7 +783,7 @@ for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
 # Load and plot the spatial gradients as a list
 SpatHetAllList <- lapply(NamesDtFrm$Acro2,
                          function(GF.Use){
-                           rast(paste0("./Data/Velocity/",GF.Use,"_SpatHet.tif"))
+                           rast(paste0("./Data/Velocity/SpatHet/",GF.Use,"_SpatHet.tif"))
                          })
 
 # Make a multi-band SpatRaster
@@ -802,11 +800,11 @@ mtext("Spatial gradient [% per km]",
       outer = TRUE)
 ```
  
-```{r BearingAllGF, fig.cap="**Fig 12b*. *Bearing of the spatial gradinets for all evaluated growth forms*"}
+```{r BearingAllGF, fig.cap="**Fig 12b**. *Bearing of the spatial gradinets for all evaluated growth forms*"}
 
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
-  if(!paste0(GF.Use,"_Bearing.tif")%in%dir("./Data/Velocity/")){
+  if(!paste0(GF.Use,"_Bearing.tif")%in%dir("./Data/Velocity/Bearing/")){
 # Make suitability raster for the selected GF for time 1
     MapsPer.GF <- rasterize(x = as.matrix(xy), # points as a matrix
                                    y = cr.ea, #  template raster
@@ -858,7 +856,7 @@ for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
                                                  x)})
 # Time integrated bearing The direction of change would change if the temporal tendency is to a reduction in the variable of interest
 # Load the temporal trend  
-  TempHetRast <- rast(paste0("./Data/Velocity/",GF.Use,"_TempChng.tif"))
+  TempHetRast <- rast(paste0("./Data/Velocity/TempChng/",GF.Use,"_TempChng.tif"))
 # Turn acording to the temporal trend
   BearingRast2 <- app(c(BearingRast,TempHetRast),
                            function(x){
@@ -875,7 +873,7 @@ for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
   rm(list=c("BearingRast","TempHetRast"));gc()
 # Save the Raster file
     writeRaster(BearingRast2,
-                paste0("./Data/Velocity/",GF.Use,"_Bearing.tif"),
+                paste0("./Data/Velocity/Bearing/",GF.Use,"_Bearing.tif"),
                 overwrite=TRUE)
     rm(list=c("BearingRast2"));gc()
     
@@ -885,7 +883,7 @@ for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
 # Load and plot the Temporal gradients as a list
 BearingAllList <- lapply(NamesDtFrm$Acro2,
                          function(GF.Use){
-                           rast(paste0("./Data/Velocity/",GF.Use,"_Bearing.tif"))
+                           rast(paste0("./Data/Velocity/Bearing/",GF.Use,"_Bearing.tif"))
                          })
 
 # Make a multi-band SpatRaster
@@ -905,17 +903,17 @@ mtext("Bearing  [Degrees]",
 **Tird**: Estimate the lvelocity magnitude (i.e., speed) as the ratio between the temporal and spatial gradienet.
 
  
-```{r Velocity AllGF, fig.cap="**Fig 13*. *Velocity for all evaluated growth forms*"}
+```{r Velocity AllGF, fig.cap="**Fig 13**. *Velocity for all evaluated growth forms*"}
 
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
   if(!paste0(GF.Use,"_Velocity.tif")%in%dir("./Data/Velocity/")){
     
 # Load the Temporal gradients as a list
-    TempHet <- rast(paste0("./Data/Velocity/",GF.Use,"_TempChng.tif"))
+    TempHet <- rast(paste0("./Data/Velocity/TempChng/",GF.Use,"_TempChng.tif"))
 
 # Load and plot the Temporal gradients as a list
-    SpatHet <- rast(paste0("./Data/Velocity/",GF.Use,"_SpatHet.tif"))
+    SpatHet <- rast(paste0("./Data/Velocity/SpatHet/",GF.Use,"_SpatHet.tif"))
 
 # Estimate the velocity of change
     Velocity <-  abs(TempHet)/SpatHet
