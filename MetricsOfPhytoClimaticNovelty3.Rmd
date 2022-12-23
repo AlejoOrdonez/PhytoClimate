@@ -110,7 +110,7 @@ To measure this, we focus on the composition rearrangement of a location due to 
 
 Core to measuring novelty is the directionality of the contrasts - **Current conditions vs.. ALL past cells**. Therefore, to start we need to load the suitability per-growth form under the current environmental conditions (here defined as 1950 values):
 
-```{r Maps0kaBP, fig.cap="**Fig 1.** *Present (1950) suitability per-growth form.*"}
+```{r Maps0kaBP, fig.dim = c(10,8), fig.cap = "**Fig 1.** *Present (1950) suitability per-growth form.*"}
 ## Make suitability raster for all growth forms for the present time step [1950] - 45th slot in the data list 
 Maps0kaBPlist <- lapply(dimnames(pml[[45]])[[2]],
                        function(i){
@@ -144,7 +144,7 @@ Maps0kaBPTble <- values(Maps0kaBP,
 
 After this, we need to load the suitability per-growth form under past environmental conditions (here defined as the Last Glacial Maximum (21kaBP) values):
 
-```{r Maps21kaBP, fig.dim = c(10,8), fig.cap="**Fig 2.** *Past (21kaBP) Suitability per-growth form*"}
+```{r Maps21kaBP, fig.dim = c(10,8), fig.cap = "**Fig 2.** *Past (21kaBP) Suitability per-growth form*"}
 ## Make suitability raster for all growth forms for the first time step [21kaBP?]
 Maps21kaBPlist <- lapply(dimnames(pml[[1]])[[2]],
                        function(i){
@@ -199,7 +199,7 @@ With all the pairwise distances estimated, a technique used to estimate site nov
 
 Now using the Min Chord distance (as implemented in `anaolgue`), we estimate (using a parallel computing approach) the novelty of each cell in `Maps0kaBP` [the present growth from suitability measured based on 1950 climates] when compared to the Last Glacial Maximum growth from suitability as presented in `Maps21kaBP`:
 
-```{r CordDistEst, fig.cap="**Fig 3.** *Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"}
+```{r CordDistEst, fig.dim = c(10,8), fig.cap = "**Fig 3.** *Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"}
 # Calculate the Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
 if(!"CordD_min.tif"%in%dir("./Data/Novelty/")){
   a<-Sys.time()
@@ -252,7 +252,7 @@ plot(wrld_simpl, add=T)
 
 We also do this estimation using a Chi-Squared distance:
 
-```{r ChiDistEst, fig.cap="**Fig 4.** *Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"}
+```{r ChiDistEst, fig.dim = c(10,8), fig.cap = "**Fig 4.** *Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"}
 # Calculate the Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
 if(!"CordD_min.tif"%in%dir("./Data/Novelty/")){
   a<-Sys.time()
@@ -333,7 +333,7 @@ Based on the estimation above, the cut-off value for non-analog growth form asse
 
 Now, using this value, the `CordDistRast` object, which contains the dissimilarity values could be masked to indicate which of the current areas are novel when compared to past conditions.
 
-```{r CordDistMapMcarloCutoff1, fig.cap="**Fig 5a.** *Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"}
+```{r CordDistMapMcarloCutoff1, fig.dim = c(10,8), fig.cap = "**Fig 5a.** *Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"}
 # defining the suitable cut-off value
 CutOffValCordD <- quantile(Maps0kaBP.CordDmcarlo,0.01)
 # Plot the cut-off map
@@ -342,7 +342,7 @@ plot(CordDistRast > CutOffValCordD,
 plot(wrld_simpl, add=T)
 ```
 
-```{r CordDistMapMcarloCutoff2, fig.cap="**Fig 5b.** *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"} 
+```{r CordDistMapMcarloCutoff2, fig.dim = c(10,8), fig.cap = "**Fig 5b.** *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"} 
 # Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
 hist(CordDistRast)
 # Cut-off value
@@ -354,7 +354,7 @@ legend("topright",
 
 The same can now be done for the novelty estimated using the chi-squared distance. 
 
-```{r ChiSqDmcarlothresh1, fig.cap="**Fig 6a.** *Areas where NOVEL growth form compositional assemblages are expected based on a ChiSrq-distance/MonteCarlo-defined criteria.*"}
+```{r ChiSqDmcarlothresh1, fig.dim = c(10,8), fig.cap = "**Fig 6a.** *Areas where NOVEL growth form compositional assemblages are expected based on a ChiSrq-distance/MonteCarlo-defined criteria.*"}
 if(!"CordDmcarlo.rds"%in%dir("./Data/Novelty/")){
 # use a Monte Carlo simulation of dissimilarities to define the suitability cut-off
   a<-Sys.time() # Clocks at ~4mins
@@ -381,7 +381,7 @@ plot(ChiDistRast > CutOffValChiSqr,
 plot(wrld_simpl, add=T)
 ```
 
-```{r ChiSqDmcarlothresh2, fig.cap="**Fig 6b.** *Histogram showing the distibution of distances and the ChiSrq-distance/MonteCarlo-defined cutoff.*"}
+```{r ChiSqDmcarlothresh2, fig.dim = c(10,8), fig.cap = "**Fig 6b.** *Histogram showing the distibution of distances and the ChiSrq-distance/MonteCarlo-defined cutoff.*"}
 # Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
 hist(ChiDistRast)
 # cut-off value
@@ -436,7 +436,7 @@ Based on the estimation above, the cut-off value for non-analog growth form asse
 
 Now, like with the Monte Carlo approach, we can classify the `CordDistRast` object as areas that are(are) novel when compared to past conditions.
 
-```{r CordDMapROCCutoff1, fig.cap="**Fig 7a.** *Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"}
+```{r CordDMapROCCutoff1, fig.dim = c(10,8), fig.cap = "**Fig 7a.** *Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"}
 # defining the suitable cut-off value
 CordDCutOffVal <- Map0k.CordD.ROC$statistics["Combined","Opt. Dis."]
 # Plot the cut-off map
@@ -446,7 +446,7 @@ plot(CordDistRast > CordDCutOffVal,
 plot(wrld_simpl, add=T)
 ```
 
-```{r CordDMapROCCutoff2, fig.cap="**Fig 7b.** *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"}
+```{r CordDMapROCCutoff2, fig.dim = c(10,8), fig.cap = "**Fig 7b.** *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"}
 # Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
 hist(CordDistRast)
 # cut-off value
@@ -458,7 +458,7 @@ legend("topright",
 
 Now, the same procedure is done using a Chi-Squared distance:
 
-```{r ChiSqDROCthreshold1, fig.cap="**Fig 8a.** *Areas where NOVEL growth form compositional assemblages are expected based on a ChiSqr-distance/ROC-defined criteria.*"}
+```{r ChiSqDROCthreshold1, fig.dim = c(10,8), fig.cap = "**Fig 8a.** *Areas where NOVEL growth form compositional assemblages are expected based on a ChiSqr-distance/ROC-defined criteria.*"}
 
 if(!"ChiDROC.rds"%in%dir("./Data/Novelty/")){
 # Estimate the ROC threshold
@@ -483,7 +483,7 @@ plot(ChiDistRast > ChiDCutOffVal,
      xpd=NA)
 plot(wrld_simpl, add=T)
 ```
-```{r ChiSqDROCthreshold2, fig.cap="**Fig 8b.** *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"}
+```{r ChiSqDROCthreshold2, fig.dim = c(10,8), fig.cap = "**Fig 8b.** *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"}
 # Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
 hist(ChiDistRast,
      main = "Compositional distance\n0kaBP to 21kaBP [Evergreen trees]",
@@ -513,7 +513,7 @@ For this we start by estimating the temporal gradient (i.e., $\frac{\text{d}c}{\
 
 Below we show how this is estimated by the *Evergreen* growth form.
 
-```{r TempGradEveGrn, fig.cap="**Fig 9.** *Temporal heterogeneity (%-change per 100yrs) for Evergreen trees*"}
+```{r TempGradEveGrn, fig.dim = c(10,8), fig.cap = "**Fig 9.** *Temporal heterogeneity (%-change per 100yrs) for Evergreen trees*"}
 ## Make suitability raster for Evergreen trees for all time steps [21kaBP-1950]
 MapsEvergreenlist <- lapply(1:45,
                        function(i){
@@ -581,7 +581,7 @@ plot(wrld_simpl, add=T)
 The second step is to estimating the spatial heterogeneity (change per unit space; i.e.,  $\frac{\text{d}c}{\text{d}x}$) as in [Burrows et al.2011](https://doi.org/10.1126/science.1210288), [Dobrowski et al (2012)](https://doi.org/10.1111/gcb.12026) and [Ordonez et al (2016)](https://doi.org/10.1038/nclimate3127) for each map cell as "the slope of proportions" using the maximum average technique [Burrough & McDonnell 1998]. The method focuses on estimating the average change in the West-East (W-E) direction (negative values indicate a westward direction), and the North-South (N-S) direction (negative values indicate a equatorial direction) and divided by the avg distance between the cells (47km in the West-East direction and 66km in the North-South direction). The overall spatial gradients is then calculated as the vector sum of the N-S and W-E gradients, with the associated vector angle giving the direction of the gradient.
 
 
-```{r SpacGradEveGrn, fig.cap="**Fig 10.** *Spatial heterogeneity (%-change per km) for Evergreen trees*"}
+```{r SpacGradEveGrn, fig.dim = c(10,8), fig.cap = "**Fig 10.** *Spatial heterogeneity (%-change per km) for Evergreen trees*"}
 
 if(!"EvergreenSpcChng.tif"%in%dir("./Data/Velocity")){
 # Get the proportion raster for the initial period
@@ -652,7 +652,7 @@ plot(SpacHetEvGrnRast,
 plot(wrld_simpl, add=T)
 ```
 
-```{r BearingEveGrn, fig.cap="**Fig 11.** *Bearing of the spatial gradient for Evergreen trees*"}
+```{r BearingEveGrn,  fig.dim = c(10,8), fig.cap = "**Fig 11.** *Bearing of the spatial gradient for Evergreen trees*"}
 
 if(!"EvergreenDir.tif"%in%dir("./Data/Velocity/")){
 # Estimating the bearing of the velocity vector based on initial conditions
@@ -696,7 +696,7 @@ plot(wrld_simpl, add=T)
 
 With these two variables (that is `SpacHetEvGrnRast` quantifying the spatial heterogeneity, and `TempHetEvGrnRast` quantifying the temporal heterogeneity) we can estimate the velocity as the ratio between these two
 
-```{r Velocity, fig.cap="**Fig 12.** *Velocity of change for Evergreen trees*"}
+```{r Velocity,  fig.dim = c(10,8), fig.cap = "**Fig 12.** *Velocity of change for Evergreen trees*"}
 
 if(!"EvergreenVel_21to0kaBP.tif"%in%dir("./Data/Velocity/")){
 # Estimate velocity
@@ -742,7 +742,7 @@ Now we estimate the velocity for the other growth forms. For this, we will divid
 
 **First**: Estimate the temporal gradients using a generalized least squares regression on suitability maps for the 21kaBP to 0kaBP period for each cell with a autocorrelation structure of order one (AR1 model).
 
-```{r TempGradAllGF, fig.cap="**Fig 11.** *Temporal gradinets for all evaluated growth forms*"}
+```{r TempGradAllGF,  fig.dim = c(10,8), fig.cap = "**Fig 11.** *Temporal gradinets for all evaluated growth forms*"}
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
   if(!paste0(GF.Use,"_TempChng.tif")%in%dir("./Data/Velocity/TempChng/")){
@@ -829,7 +829,7 @@ levelplot(raster::raster(Ice), # add the ice maps
 **Second**: Estimate the spatial gradients (magnitude and direction) using a using the maximum average technique [Burrough & McDonnell 1998].
 
 
-```{r SpaceGradAllGF, fig.cap="**Fig 12a.** *Spatial gradinets for all evaluated growth forms*"}
+```{r SpaceGradAllGF,  fig.dim = c(10,8), fig.cap = "**Fig 12a.** *Spatial gradinets for all evaluated growth forms*"}
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
   if(!paste0(GF.Use,"_SpatHet.tif")%in%dir("./Data/Velocity/SpatHet/")){
@@ -894,7 +894,7 @@ levelplot(raster::raster(Ice), # add the ice maps
           alpha.regions = 0.6)
 ```
  
-```{r BearingAllGF, fig.cap="**Fig 12b.** *Bearing of the spatial gradinets for all evaluated growth forms*"}
+```{r BearingAllGF,  fig.dim = c(10,8), fig.cap = "**Fig 12b.** *Bearing of the spatial gradinets for all evaluated growth forms*"}
 
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
@@ -1003,7 +1003,7 @@ levelplot(raster::raster(Ice), # add the ice maps
 
 **Third**: Estimate the velocity magnitude (i.e., speed) as the ratio between the temporal and spatial gradient.
 
-```{r Velocity AllGF, fig.cap="**Fig 13.** *Velocity for all evaluated growth forms*"}
+```{r VelocityAllGF,  fig.dim = c(10,8), fig.cap = "**Fig 13.** *Velocity for all evaluated growth forms*"}
 
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
@@ -1069,15 +1069,80 @@ par(oma=c(0,0,2,0))
 plot(mean(log10(VelocityAll)))
 mtext("log10-Divergence  [km per 100yrs]",
       font =2,
-      cex=1.5,
       outer = TRUE)
 ```
 
 
+### Displacement of phytoclimatic change - per GF
+
+As defined in [Ordonez et al (2016) Nat Clim Change](https://doi.org/10.1038/nclimate3127), displacement of climatic vectors is the mean of multiple velocity vectors. This metric indicates how "fast" would/will an environmental setup (weighting all variables equally) would move given the balance of local environmental gradients and temporal trends in environmental variables. A fast displacement suggests that the magnitudes of velocity vectors (i.e., speed) are rather large, whereas slow  displacement indicate that the magnitudes of velocity vectors is small across evaluated growth forms.
+
+Here, we leverage the velocity estimates for the 14 evaluated growth forms to assess how fast has the *"growth form setup"* changed since the Last Glacial Maxim (LGM; ~21ka) - the *Displacement of growth form suitability*. For this, we used the *geometric mean* of the velocity vectors (here implemented as the mean of Log-10 velocities). 
+
+
+```{r Displacement, fig.dim = c(10,8), fig.cap = "**Fig 14.** *Displacement of growth form suitability velocity vectors*"}
+# estimate the Displacement <-  geometric mean of velocities
+Displacement <- mean(log10(VelocityAll))
+# Save the Displacement raster
+writeRaster(Displacement,
+            filename = "./Data/Displacement/DisplacementAllGF.tif",
+            overwrite = TRUE)
+
+# Plot the Displacement
+plot(Displacement,
+     plg = list(title = 'Km per 500 yrs'),
+     main = "Displacement of growth form suitability",
+     col = rev(hcl.colors(100,"RdYlBu")),
+     xpd=NA)
+# add world map
+plot(wrld_simpl, add=T)
+# add the ice maps 
+plot(Ice, 
+    col = gray(0.3,alpha = 0.6),
+    legend = F,
+      add = T)
+```
+
+
+### Divergence of phytoclimatic change - per GF
+
+As defined in [Ordonez et al (2016) Nat Clim Change](https://doi.org/10.1038/nclimate3127), divergence of climatic vectors is the angle between two velocity vectors. In a multivariate context this definition is not practical, and we instead use the standard deviations of bearings as in [Burke et al (2019) Phil. Trans. R. Soc. B374](https://doi.org/10.1098/rstb.2019.0218). This metric indicates how "variable" are the directions of velocity vectors in a given location for the 14 evaluated growth forms. A low divergence suggests that all velocity vectors of all climate variables would tend to shift along the same axis of direction, whereas high divergences indicate that velocity vectors lack congruence in orientation and hence so might species distribution shifts.
+
+Here, we leverage the velocity estimates for the 14 evaluated growth forms to assess how fast has the *"growth form setup"* changed since the Last Glacial Maxim (LGM; ~21ka) - the *Displacement of growth form suitability*. For this, we used the *geometric mean* of the velocity vectors (here implemented as the mean of Log-10 velocities). 
+
+
+```{r Divergence, fig.dim = c(10,8), fig.cap = "**Fig 15.** *Divergence of growth form suitability velocity vectors*"}
+# Estimate the Divergence <- sd of bearings 
+Divergence <- app(x = BearingAll,
+                  fun = sd,
+                  na.rm=T)
+# Save the Divergence raster
+writeRaster(Divergence,
+            filename = "./Data/Divergence/DivergenceAllGF.tif",
+            overwrite = TRUE)
+
+
+#plot the Divergence
+plot(Divergence,
+     main = "Divergence of growth form suitability",
+     col = rev(hcl.colors(100,"RdYlBu")),
+     xpd=NA)
+# add world map
+plot(wrld_simpl, add=T)
+# add the ice maps 
+plot(Ice, 
+    col = gray(0.3,alpha = 0.6),
+    legend = F,
+      add = T)
+```
+
+
+
 # TO DO
 1) Add ice sheet covers to the maps - **DONE**
-2) Consider the spatial heterogeneity as the Avg of the first 3 periods
-3) Temporal gradients as the avg of changes between consecutive 500 yrs.
-4) Analog vector trajectory
+2) Estimate Displacement and Divergence of vectors - **DONE**
+3) Consider the spatial heterogeneity as the Avg of the first 3 periods
+4) Temporal gradients as the avg of changes between consecutive 500 yrs.
+5) Analog vector trajectory
 
 
