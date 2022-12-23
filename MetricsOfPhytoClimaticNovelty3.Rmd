@@ -18,6 +18,10 @@ library(terra)
 library(analogue)
 library(nlme)
 library(snowfall)
+library(rasterVis)
+library(sp)
+require(latticeExtra)
+require(maptools)
 
 ## Load the Data
 ### Load growth form data [21kaBP to present on 500Yrs intervals] last one is 2070 second to last is 1950
@@ -26,29 +30,38 @@ pml <- readRDS("./Data/gf_suitab_matrices.rds")
 xy <- readRDS("./Data/cell_coordinates.rds")
 ### Raster template
 cr.ea <- rast("./Data/raster_template.tif")
+
 ## Ice sheets 21ka BP
 if(!"IceCover21kaBP.tif"%in%dir("./Data")){
-# Load the raster
+# Load the NetCDF raster
   Ice <- raster::raster("./Data/ice6g_c [PMIP4]/ICE-6G-C/I6_C.VM5a_10min.21.nc",
                       varname = "sftgif")
 # Rotate so it is not 0-360 but -180 to 180
   Ice <- raster::rotate(Ice)
+# turn into a Data.frame
+  IceTbl <- data.frame(coordinates(Ice)[Ice[]==100,],
+                       Ice=Ice[][Ice[]==100])
+# Turn into a SpatialPointsDataFrame
+  IceShp <- SpatialPointsDataFrame(coords = coordinates(Ice)[Ice[]==100,],
+                                   data = IceTbl,
+                                   proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs")
+                                   )
+# Re-project the SpatialPointsDataFrame to Eckert_IV
+  IceShp <- spTransform(x = IceShp,
+                        CRSobj = CRS("+proj=eck4"))
+# Turn the Re-projected SpatialPointsDataFrame into SpatRaster 
+  Ice2 <- rasterize(x = coordinates(IceShp),
+                    y= cr.ea,
+                    values = 100)
 
-  Ice <- raster::crop(Ice,
-              raster::extent(c(-180,180,-90,90)),
-              snap = "in")
-    # Re project to the same projection as the Raster template
-  Ice <- raster::projectRaster(Ice,
-                 crs="+proj=eck4",
-                 method = "ngb")
-# Re sample so it aligns with the Raster template
-  Ice <- raster::resample(Ice,
-                 raster::raster("./Data/raster_template.tif"),
-                 method = "ngb")
 # Save the raster  
-  raster::writeRaster(Ice,"./Data/IceCover21kaBP.tif",format="GTiff", overwrite=TRUE)
+  writeRaster(Ice2,"./Data/IceCover21kaBP.tif", overwrite=TRUE)
 }
 Ice <- rast("./Data/IceCover21kaBP.tif") 
+## Countries shapefile
+data(wrld_simpl)
+wrld_simpl <- spTransform(x = wrld_simpl,
+                          CRSobj = CRS("+proj=eck4"))
 
 ### Matrix of names
 NamesDtFrm <- data.frame(Acro1 = c("TE", "TDdry", "TDcold", "TN", "ShE", "ShDdry", "ShDcold","H","Geo", "Thero", "GC3", "GC4", "Suc", "Clim"),
@@ -97,7 +110,7 @@ To measure this, we focus on the composition rearrangement of a location due to 
 
 Core to measuring novelty is the directionality of the contrasts - **Current conditions vs.. ALL past cells**. Therefore, to start we need to load the suitability per-growth form under the current environmental conditions (here defined as 1950 values):
 
-```{r Maps0kaBP, fig.cap="**Fig 1**. *Present (1950) suitability per-growth form.*"}
+```{r Maps0kaBP, fig.cap="**Fig 1.** *Present (1950) suitability per-growth form.*"}
 ## Make suitability raster for all growth forms for the present time step [1950] - 45th slot in the data list 
 Maps0kaBPlist <- lapply(dimnames(pml[[45]])[[2]],
                        function(i){
@@ -111,9 +124,18 @@ Maps0kaBP <- do.call("c",Maps0kaBPlist)
 rm(Maps0kaBPlist);gc()
 # Add the GF names to each layer
 names(Maps0kaBP) <- NamesDtFrm$Name[match(dimnames(pml[[1]])[[2]],NamesDtFrm$Acro2)]
-# Plot the map
-plot(Maps0kaBP,
-     range = c(0,0.75))
+
+# Plot the Suitability Raster
+levelplot(raster::stack(Maps0kaBP), # level plot only works with raster files
+          scales = list(draw=FALSE), # To remove the Latlong
+          main=list("Suitability per growth form [1950]",side=1,line=-0.5), # Main title
+          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
+          colorkey = T # add a legend
+          ) + 
+# Add the country outlines
+layer(sp.lines(wrld_simpl)
+      )
+
 ## Generate a data.frame of cells with data for present conditions
 Maps0kaBPTble <- values(Maps0kaBP,
                         dataframe = TRUE,
@@ -122,7 +144,7 @@ Maps0kaBPTble <- values(Maps0kaBP,
 
 After this, we need to load the suitability per-growth form under past environmental conditions (here defined as the Last Glacial Maximum (21kaBP) values):
 
-```{r Maps21kaBP, fig.dim = c(10,8), fig.cap="**Fig 2**. *Past (21kaBP) Suitability per-growth form*"}
+```{r Maps21kaBP, fig.dim = c(10,8), fig.cap="**Fig 2.** *Past (21kaBP) Suitability per-growth form*"}
 ## Make suitability raster for all growth forms for the first time step [21kaBP?]
 Maps21kaBPlist <- lapply(dimnames(pml[[1]])[[2]],
                        function(i){
@@ -137,8 +159,22 @@ rm(Maps21kaBPlist)
 # Add the GF names to each layer
 names(Maps21kaBP) <- NamesDtFrm$Name[match(dimnames(pml[[1]])[[2]],NamesDtFrm$Acro2)]
 # Plot the map
-plot(Maps21kaBP,
-     range = c(0,0.75))
+
+# Plot the Suitability Raster
+levelplot(raster::stack(Maps21kaBP), # level plot only works with raster files
+          scales = list(draw=FALSE), # To remove the Latlong
+          main=list("Suitability per growth form [21kaBP]",side=1,line=-0.5), # Main title
+          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
+          colorkey = T # add a legend
+          ) + 
+# Add the country outlines
+layer(sp.lines(wrld_simpl)
+      ) + 
+# Plot the Ice maps 
+levelplot(raster::raster(Ice), # add the ice maps 
+          col.regions = "dark grey",
+          alpha.regions = 0.6)
+
 ## Generate a data.frame of cells with data for past conditions
 Maps21kaBPTble<- values(Maps21kaBP,
                         dataframe = TRUE,
@@ -163,7 +199,7 @@ With all the pairwise distances estimated, a technique used to estimate site nov
 
 Now using the Min Chord distance (as implemented in `anaolgue`), we estimate (using a parallel computing approach) the novelty of each cell in `Maps0kaBP` [the present growth from suitability measured based on 1950 climates] when compared to the Last Glacial Maximum growth from suitability as presented in `Maps21kaBP`:
 
-```{r CordDistEst, fig.cap="**Fig 3**. *Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"}
+```{r CordDistEst, fig.cap="**Fig 3.** *Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"}
 # Calculate the Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
 if(!"CordD_min.tif"%in%dir("./Data/Novelty/")){
   a<-Sys.time()
@@ -209,12 +245,14 @@ if(!"CordDistRast"%in%ls()){
 }
 # plot the minimum chord distance
 plot(CordDistRast,
-     main = "Min chord distance")
+     main = "Min chord distance",
+     col = rev(hcl.colors(100,"RdYlBu")))
+plot(wrld_simpl, add=T)
 ```
 
 We also do this estimation using a Chi-Squared distance:
 
-```{r ChiDistEst, fig.cap="**Fig 4**. *Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"}
+```{r ChiDistEst, fig.cap="**Fig 4.** *Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"}
 # Calculate the Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
 if(!"CordD_min.tif"%in%dir("./Data/Novelty/")){
   a<-Sys.time()
@@ -261,7 +299,9 @@ if(!"ChiDistRast"%in%ls()){
 }
 # plot the minimum chord distance
 plot(ChiDistRast,
-     main = "Min Chi-Sqr distance")
+     main = "Min Chi-Sqr distance",
+     col = rev(hcl.colors(100,"RdYlBu")))
+plot(wrld_simpl, add=T)
 ```
 
 The Next step in producing a novelty map is defining the a suitable dissimilarity cut-off to determine if the composition difference (i.e. the minimum distance) means a current assemblages ar *novel* in contrast to those in the past.
@@ -293,15 +333,16 @@ Based on the estimation above, the cut-off value for non-analog growth form asse
 
 Now, using this value, the `CordDistRast` object, which contains the dissimilarity values could be masked to indicate which of the current areas are novel when compared to past conditions.
 
-```{r CordDistMapMcarloCutoff1, fig.cap="**Fig 5a**. *Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"}
+```{r CordDistMapMcarloCutoff1, fig.cap="**Fig 5a.** *Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"}
 # defining the suitable cut-off value
 CutOffValCordD <- quantile(Maps0kaBP.CordDmcarlo,0.01)
 # Plot the cut-off map
 plot(CordDistRast > CutOffValCordD,
      main = "1950's Non-analogue areas compared to 21kaBP\n[Cord-Dist - Monte-Carlo based cut-off]")
+plot(wrld_simpl, add=T)
 ```
 
-```{r CordDistMapMcarloCutoff2, fig.cap="**Fig 5b**. *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"} 
+```{r CordDistMapMcarloCutoff2, fig.cap="**Fig 5b.** *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"} 
 # Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
 hist(CordDistRast)
 # Cut-off value
@@ -313,7 +354,7 @@ legend("topright",
 
 The same can now be done for the novelty estimated using the chi-squared distance. 
 
-```{r ChiSqDmcarlothresh1, fig.cap="**Fig 6a**. *Areas where NOVEL growth form compositional assemblages are expected based on a ChiSrq-distance/MonteCarlo-defined criteria.*"}
+```{r ChiSqDmcarlothresh1, fig.cap="**Fig 6a.** *Areas where NOVEL growth form compositional assemblages are expected based on a ChiSrq-distance/MonteCarlo-defined criteria.*"}
 if(!"CordDmcarlo.rds"%in%dir("./Data/Novelty/")){
 # use a Monte Carlo simulation of dissimilarities to define the suitability cut-off
   a<-Sys.time() # Clocks at ~4mins
@@ -337,9 +378,10 @@ CutOffValChiSqr <- quantile(Maps0kaBP.ChiSqmcarlo,0.01)
 # Plot the cut-off map
 plot(ChiDistRast > CutOffValChiSqr,
      main = "1950's Non-analogue areas compared to 21kaBP\n[Chi-Sqrd - Monte-Carlo based cut-off]")
+plot(wrld_simpl, add=T)
 ```
 
-```{r ChiSqDmcarlothresh2, fig.cap="**Fig 6b**. *Histogram showing the distibution of distances and the ChiSrq-distance/MonteCarlo-defined cutoff.*"}
+```{r ChiSqDmcarlothresh2, fig.cap="**Fig 6b.** *Histogram showing the distibution of distances and the ChiSrq-distance/MonteCarlo-defined cutoff.*"}
 # Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
 hist(ChiDistRast)
 # cut-off value
@@ -394,17 +436,17 @@ Based on the estimation above, the cut-off value for non-analog growth form asse
 
 Now, like with the Monte Carlo approach, we can classify the `CordDistRast` object as areas that are(are) novel when compared to past conditions.
 
-```{r CordDMapROCCutoff1, fig.cap="**Fig 7a**. *Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"}
+```{r CordDMapROCCutoff1, fig.cap="**Fig 7a.** *Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"}
 # defining the suitable cut-off value
 CordDCutOffVal <- Map0k.CordD.ROC$statistics["Combined","Opt. Dis."]
 # Plot the cut-off map
 plot(CordDistRast > CordDCutOffVal,
      main = "1950's Non-analogue areas compared to 21kaBP\n[Cord Dist - ROC based cut-off]",
-     cex.main = 1.5,
      xpd = NA)
+plot(wrld_simpl, add=T)
 ```
 
-```{r CordDMapROCCutoff2, fig.cap="**Fig 7b**. *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"}
+```{r CordDMapROCCutoff2, fig.cap="**Fig 7b.** *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"}
 # Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
 hist(CordDistRast)
 # cut-off value
@@ -416,7 +458,7 @@ legend("topright",
 
 Now, the same procedure is done using a Chi-Squared distance:
 
-```{r ChiSqDROCthreshold1, fig.cap="**Fig 8a**. *Areas where NOVEL growth form compositional assemblages are expected based on a ChiSqr-distance/ROC-defined criteria.*"}
+```{r ChiSqDROCthreshold1, fig.cap="**Fig 8a.** *Areas where NOVEL growth form compositional assemblages are expected based on a ChiSqr-distance/ROC-defined criteria.*"}
 
 if(!"ChiDROC.rds"%in%dir("./Data/Novelty/")){
 # Estimate the ROC threshold
@@ -438,10 +480,10 @@ ChiDCutOffVal <- Map0k.ChiD.ROC$statistics["Combined","Opt. Dis."]
 # Plot the cut-off map
 plot(ChiDistRast > ChiDCutOffVal,
      main = "1950's Non-analogue areas compared to 21kaBP\n[Chi Dist - ROC based cut-off]",
-     cex.main = 1.5,
      xpd=NA)
+plot(wrld_simpl, add=T)
 ```
-```{r ChiSqDROCthreshold2, fig.cap="**Fig 8b**. *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"}
+```{r ChiSqDROCthreshold2, fig.cap="**Fig 8b.** *Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"}
 # Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
 hist(ChiDistRast,
      main = "Compositional distance\n0kaBP to 21kaBP [Evergreen trees]",
@@ -471,7 +513,7 @@ For this we start by estimating the temporal gradient (i.e., $\frac{\text{d}c}{\
 
 Below we show how this is estimated by the *Evergreen* growth form.
 
-```{r TempGradEveGrn, fig.cap="**Fig 9**. *Temporal heterogeneity (%-change per 100yrs) for Evergreen trees*"}
+```{r TempGradEveGrn, fig.cap="**Fig 9.** *Temporal heterogeneity (%-change per 100yrs) for Evergreen trees*"}
 ## Make suitability raster for Evergreen trees for all time steps [21kaBP-1950]
 MapsEvergreenlist <- lapply(1:45,
                        function(i){
@@ -531,14 +573,15 @@ if(!"TempHetEvGrnRast"%in%ls()){
 plot(TempHetEvGrnRast,
      plg = list(title = '% per 100yrs'),
      main = "Temporal gradient [Evergreen trees]",
-     cex.main = 1.5,
+     col = rev(hcl.colors(100,"RdYlBu")),
      xpd=NA)
+plot(wrld_simpl, add=T)
 ```
 
 The second step is to estimating the spatial heterogeneity (change per unit space; i.e.,  $\frac{\text{d}c}{\text{d}x}$) as in [Burrows et al.2011](https://doi.org/10.1126/science.1210288), [Dobrowski et al (2012)](https://doi.org/10.1111/gcb.12026) and [Ordonez et al (2016)](https://doi.org/10.1038/nclimate3127) for each map cell as "the slope of proportions" using the maximum average technique [Burrough & McDonnell 1998]. The method focuses on estimating the average change in the West-East (W-E) direction (negative values indicate a westward direction), and the North-South (N-S) direction (negative values indicate a equatorial direction) and divided by the avg distance between the cells (47km in the West-East direction and 66km in the North-South direction). The overall spatial gradients is then calculated as the vector sum of the N-S and W-E gradients, with the associated vector angle giving the direction of the gradient.
 
 
-```{r SpacGradEveGrn, fig.cap="**Fig 10**. *Spatial heterogeneity (%-change per km) for Evergreen trees*"}
+```{r SpacGradEveGrn, fig.cap="**Fig 10.** *Spatial heterogeneity (%-change per km) for Evergreen trees*"}
 
 if(!"EvergreenSpcChng.tif"%in%dir("./Data/Velocity")){
 # Get the proportion raster for the initial period
@@ -604,11 +647,12 @@ if(!"SpacHetEvGrnRast"%in%ls()){
 plot(SpacHetEvGrnRast,
      plg = list(title = '% per Km'),
      main = "Spatial gradient [Evergreen trees]",
-     cex.main = 1.5,
+     col = rev(hcl.colors(100,"RdYlBu")),
      xpd=NA)
+plot(wrld_simpl, add=T)
 ```
 
-```{r BearingEveGrn, fig.cap="**Fig 11**. *Bearing of the spatial gradient for Evergreen trees*"}
+```{r BearingEveGrn, fig.cap="**Fig 11.** *Bearing of the spatial gradient for Evergreen trees*"}
 
 if(!"EvergreenDir.tif"%in%dir("./Data/Velocity/")){
 # Estimating the bearing of the velocity vector based on initial conditions
@@ -644,20 +688,22 @@ if(!"BearingEvGrnRast2"%in%ls()){
 plot(BearingEvGrnRast2,
      plg = list(title = 'Degrees'),
      main = "Bearing spatial gradient [Evergreen trees]",
-     cex.main = 1.5,
+     col = rev(hcl.colors(100,"RdYlBu")),
      xpd=NA)
+plot(wrld_simpl, add=T)
+
 ```
 
 With these two variables (that is `SpacHetEvGrnRast` quantifying the spatial heterogeneity, and `TempHetEvGrnRast` quantifying the temporal heterogeneity) we can estimate the velocity as the ratio between these two
 
-```{r Velocity, fig.cap="**Fig 12**. *Velocity of change for Evergreen trees*"}
+```{r Velocity, fig.cap="**Fig 12.** *Velocity of change for Evergreen trees*"}
 
 if(!"EvergreenVel_21to0kaBP.tif"%in%dir("./Data/Velocity/")){
 # Estimate velocity
   VelocityEvGrn <-  abs(TempHetEvGrnRast)/SpacHetEvGrnRast
 
 # Make the velocity for very slow areas (~1e-3km/centennial) zero
-  VelocityEvGrn[which(VelocityEvGrn[]<0.001)] <- 0
+  VelocityEvGrn[which(VelocityEvGrn[]<0.001)] <- 0.001
 
 # Make the velocity for flat areas 100km/centennial
   VelocityEvGrn[which(SpacHetEvGrnRast[]==0)] <- 1001
@@ -674,19 +720,29 @@ if(!"VelocityEvGrn"%in%ls()){
 }
 
 #plot the Velocity
-plot(log10(VelocityEvGrn),
-     plg = list(title = 'km per 100yrs'),
-     main = "Suitability velocity [Evergreen trees]",
-     cex.main = 1.5,
-     xpd=NA)
+levelplot(raster::raster(log10(VelocityEvGrn)), # level plot only works with raster files
+          margin = F,
+          scales = list(draw=FALSE), # To remove the Latlong
+          main=list("Suitability velocity Evergreen trees \n [km per 100yrs]]",side=1,line=-0.5), # Main title
+          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
+          colorkey=list(at=seq(-3,3,length.out=100),
+                        labels = list(at = -3:3,
+                                      labels = 10^c(-3:3),
+                                      col=rev(hcl.colors(100, palette = "RdYlBu")))) # add a legend
+) + 
+  levelplot(raster::raster(Ice), # add the ice maps 
+            col.regions = "dark grey",
+            alpha.regions = 0.6)+
+  # Add the country outlines
+  layer(sp.lines(wrld_simpl)
+  )
 ```
-
 
 Now we estimate the velocity for the other growth forms. For this, we will divide the process in Three stages:
 
 **First**: Estimate the temporal gradients using a generalized least squares regression on suitability maps for the 21kaBP to 0kaBP period for each cell with a autocorrelation structure of order one (AR1 model).
 
-```{r TempGradAllGF, fig.cap="**Fig 11**. *Temporal gradinets for all evaluated growth forms*"}
+```{r TempGradAllGF, fig.cap="**Fig 11.** *Temporal gradinets for all evaluated growth forms*"}
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
   if(!paste0(GF.Use,"_TempChng.tif")%in%dir("./Data/Velocity/TempChng/")){
@@ -755,18 +811,25 @@ names(TempHetAll) <- NamesDtFrm$Name
 rm(TempHetAllList);gc()
 
 # plot the Temporal gradient
-par(oma=c(0,0,2,0))
-plot(TempHetAll)
-mtext("Temporal gradient [% per 100 yrs]",
-      font =2,
-      cex=1.5,
-      outer = TRUE)
+levelplot(raster::stack(TempHetAll), # level plot only works with raster files
+          scales = list(draw=FALSE), # To remove the Latlong
+          main=list("Temporal gradient [% per 100 yrs]",side=1,line=-0.5), # Main title
+          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
+          colorkey = T # add a legend
+          ) + 
+# Add the country outlines
+layer(sp.lines(wrld_simpl)
+      ) + 
+# Plot the Ice maps 
+levelplot(raster::raster(Ice), # add the ice maps 
+          col.regions = "dark grey",
+          alpha.regions = 0.6)
 ```
 
 **Second**: Estimate the spatial gradients (magnitude and direction) using a using the maximum average technique [Burrough & McDonnell 1998].
 
 
-```{r SpaceGradAllGF, fig.cap="**Fig 12a**. *Spatial gradinets for all evaluated growth forms*"}
+```{r SpaceGradAllGF, fig.cap="**Fig 12a.** *Spatial gradinets for all evaluated growth forms*"}
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
   if(!paste0(GF.Use,"_SpatHet.tif")%in%dir("./Data/Velocity/SpatHet/")){
@@ -816,15 +879,22 @@ names(SpatHetAll) <- NamesDtFrm$Name
 rm(SpatHetAllList);gc()
 
 # plot the Spatial gradient
-par(oma=c(0,0,2,0))
-plot(SpatHetAll)
-mtext("Spatial gradient [% per km]",
-      font =2,
-      cex=1.5,
-      outer = TRUE)
+levelplot(raster::stack(SpatHetAll), # level plot only works with raster files
+          scales = list(draw=FALSE), # To remove the Latlong
+          main=list("Spatial gradient [% per km]",side=1,line=-0.5), # Main title
+          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
+          colorkey = T # add a legend
+          ) + 
+# Add the country outlines
+layer(sp.lines(wrld_simpl)
+      ) + 
+# Plot the Ice maps 
+levelplot(raster::raster(Ice), # add the ice maps 
+          col.regions = "dark grey",
+          alpha.regions = 0.6)
 ```
  
-```{r BearingAllGF, fig.cap="**Fig 12b**. *Bearing of the spatial gradinets for all evaluated growth forms*"}
+```{r BearingAllGF, fig.cap="**Fig 12b.** *Bearing of the spatial gradinets for all evaluated growth forms*"}
 
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
@@ -916,18 +986,24 @@ names(BearingAll) <- NamesDtFrm$Name
 rm(BearingAllList);gc()
 
 # plot the Bearing gradient
-par(oma=c(0,0,2,0))
-plot(BearingAll)
-mtext("Bearing  [Degrees]",
-      font =2,
-      cex=1.5,
-      outer = TRUE)
+levelplot(raster::stack(BearingAll), # level plot only works with raster files
+          scales = list(draw=FALSE), # To remove the Latlong
+          main=list("Bearing  [Degrees]",side=1,line=-0.5), # Main title
+          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
+          colorkey = T # add a legend
+          ) + 
+# Add the country outlines
+layer(sp.lines(wrld_simpl)
+      ) + 
+# Plot the Ice maps 
+levelplot(raster::raster(Ice), # add the ice maps 
+          col.regions = "dark grey",
+          alpha.regions = 0.6)
 ```
 
 **Third**: Estimate the velocity magnitude (i.e., speed) as the ratio between the temporal and spatial gradient.
 
- 
-```{r Velocity AllGF, fig.cap="**Fig 13**. *Velocity for all evaluated growth forms*"}
+```{r Velocity AllGF, fig.cap="**Fig 13.** *Velocity for all evaluated growth forms*"}
 
 # We will loop over all GF names
 for(GF.Use in NamesDtFrm$Acro2){#GF.Use<- "G_C4"
@@ -967,14 +1043,23 @@ names(VelocityAll) <- NamesDtFrm$Name
 rm(VelocityAllList);gc()
 
 # plot the Velocity
-par(oma=c(0,0,2,0))
-plot(log10(VelocityAll))
-mtext("log10-Velocity  [km per 100yrs]",
-      font =2,
-      cex=1.5,
-      outer = TRUE)
+levelplot(raster::stack(log10(VelocityAll)), # level plot only works with raster files
+          scales = list(draw=FALSE), # To remove the Latlong
+          main=list("Velocity [km per 100yrs]]",side=1,line=-0.5), # Main title
+          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
+          colorkey = list(at=seq(-3,3,length.out=100),  # add a legend and its properties
+                        labels = list(at = -3:3,
+                                      labels = 10^c(-3:3),
+                                      col=rev(hcl.colors(100, palette = "RdYlBu"))))
+          ) + 
+# Add the country outlines
+layer(sp.lines(wrld_simpl)
+      ) + 
+# Plot the Ice maps 
+levelplot(raster::raster(Ice), # add the ice maps 
+          col.regions = "dark grey",
+          alpha.regions = 0.6)
 ```
-
 
 
 
@@ -982,18 +1067,15 @@ mtext("log10-Velocity  [km per 100yrs]",
 # plot the Divergence gradient
 par(oma=c(0,0,2,0))
 plot(mean(log10(VelocityAll)))
-mtext("log10-Velocity  [km per 100yrs]",
+mtext("log10-Divergence  [km per 100yrs]",
       font =2,
       cex=1.5,
       outer = TRUE)
 ```
 
 
-
-
-
 # TO DO
-1) Add ice sheet covers to the maps
+1) Add ice sheet covers to the maps - **DONE**
 2) Consider the spatial heterogeneity as the Avg of the first 3 periods
 3) Temporal gradients as the avg of changes between consecutive 500 yrs.
 4) Analog vector trajectory
