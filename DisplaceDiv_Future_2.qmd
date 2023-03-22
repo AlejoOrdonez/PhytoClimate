@@ -1,0 +1,1037 @@
+---
+title: "Phytoclimate displacement and divergence"
+description: 
+  Estimation of climate velocity (magnitude and direction) for the Phytoclimate of multiple growth forms
+author: Alejandro Ordonez
+date: "`r Sys.Date()`"
+format:
+  html:
+    embed-resources: true
+    code-fold: true
+bibliography: PhytoClim.bib
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: setup
+#| include: false
+#| warning: false
+library(terra)
+library(rasterVis)
+library(sp)
+require(latticeExtra)
+library(maptools)
+library(tidyverse)
+library(tidyterra)
+#library(analogue)
+#library(nlme)
+
+# Load the functions to Estimate velocity
+source("VelocityFnc.R")
+
+## Countries shapefile
+data(wrld_simpl)
+wrld_simpl <- spTransform(x = wrld_simpl,
+                          CRSobj = CRS("+proj=eck4"))
+wrld_simpl2 <- vect(wrld_simpl)
+
+### Matrix of names
+NamesDtFrm <- data.frame(Acronym = c("TE", "TDdry", "TDcold", "TN", "ShE", "ShDdry", "ShDcold","H","Geo", "Thero", "GC3", "GC4", "Suc", "Clim"),
+                         Acro2 = c("TE", "TD_dry", "TD_cold", "TN", "ShrE", "ShrD_dry", "ShrD_cold", "H","HGeo", "HThero", "G_C3", "G_C4", "Suc", "C"),
+                         Name = c("Evergreen trees", "Drought-deciduous trees", "Cold-deciduous trees", "Needleleaf trees", "Evergreen shrubs", "Drought-deciduous shrubs", "Cold-deciduous shrubs","Herbs", "Geophytes", "Therophytes", "C3 grasses", "C4 grasses", "Succulents", "Climbers"))
+
+
+# For 2d-plots
+colors=c("orange","blue","yellow", "red")
+colors <- col2rgb(colors)/255
+interpolate <- function(i){ # to create RGB mix for 2 vars
+  if(!is.na(i[1])){
+    x <- i[1]
+    y <- i[2]
+    x1 <- colors[,2] * x + colors[,3] * (1-x)
+    x2 <- colors[,1] * x + colors[,4] * (1-x)
+    x2 * y + x1 * (1-y)
+  } else{
+    c(NA,NA,NA)
+  }
+}
+
+```
+
+## Background
+
+Here, I will be calculating one of the the novelty metrics developed in @ordonezMappingClimaticMechanisms2016 (i.e., displacement and divergence) to assess how the rate at which Phytoclimates of multiple growth forms could result in novel assemblages emerging.
+
+**Phytoclimates** for a given growth form (**GF** from here on) can be defined as the number of species form a given GF for which the environmental conditions allow a species to occur. This idea Builds on @conradiOperationalDefinitionBiome2020 on Phyto-climates that builds on his work on operationalizing the definition of the biome for global change research.
+
+Estimates of displacement and divergence builds on calculations magnitude of climate velocity vectors (as defined in @loarieVelocityClimateChange2009) and their bearing (defined in @burrowsPaceShiftingClimate2011).
+
+## Loading the data.
+
+```{r}
+#| label: Load Data
+#| include: false
+
+### Load the preset data
+Present <- rast(dir("./Data/Future climate/present-day/",
+                    full.names = TRUE))
+names(Present) <- sort(NamesDtFrm$Acro2)
+
+### Load the future values under RCP26 scenario
+RCP26 <- rast(dir("./Data/Future climate/RCP26/",
+                    full.names = TRUE))
+names(RCP26) <- sort(NamesDtFrm$Acro2)
+
+### Load the future values under RCP85 scenario
+RCP85 <- rast(dir("./Data/Future climate/RCP85/",
+                    full.names = TRUE))
+names(RCP85) <- sort(NamesDtFrm$Acro2)
+```
+
+I will estimate expected the velocities/bearings for each GF phytoclimate. The changes will be asses between **present-day** conditions (predictions based on the mean climatology between 1979 to 2013) and **late 21^st^-century** (mean of predictions based on 2061 to 2080 climatologies).
+
+Before I do this, I will visualize the phytoclimates for each GF conditions under **present-day** conditions (@fig-PlotPresent):
+
+```{r}
+#| label: fig-PlotPresent
+#| fig-cap: Present phytocliates under present-day (1979-2013 avg) conditions for all 14 growth forms evaluated.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+pdf("test3.pdf",width= 20,height = 16)
+##### Plot the Suitability Raster for present conditions
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = Present) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The muted scale is blue to yellow to red
+    labels = scales::label_number(suffix = "%")
+  )  +
+#### Add the legend title
+    labs(fill = "Suitability",
+         title = "Present-day (1979-2013 avg) per growth form.") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.margin = unit(c(1,0,1,0), "pt"))
+dev.off()
+
+```
+
+and under **late 21^st^-century** conditions according to two different Representative Concentration Pathway ([RCPs](https://sedac.ciesin.columbia.edu/ddc/ar5_scenario_process/RCPs.html)):
+  
+1. **RCP 2.6** (@fig-PlotRCP26): Carbon dioxide (CO2) emissions start declining by 2020 and go to zero by 2100. It represents the scenario that will keep global temperature rise below 2 °C by 2100.
+
+```{r}
+#| label: fig-PlotRCP26
+#| fig-cap: Phytocliates under present-day (1979-2013 avg) conditions for all 14 growth forms evaluated.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+
+### Plot the Suitability Raster under RCP 2.6
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = RCP26) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+    labels = scales::label_number(suffix = "%")
+  )  +
+#### Add the legend title
+    labs(fill = "Suitability",
+         title = "Per growth form suitability for late 21st-century\nunder RCP 2.6 scenario.") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+```
+
+2. **RCP 8.5** (@fig-PlotRCP85): Emissions continue to rise throughout the 21^st^ century, hence representing the e basis for worst-case climate change scenario.
+
+```{r}
+#| label: fig-PlotRCP85
+#| fig-cap: Phytocliates under present-day (1979-2013 avg) conditions for all 14 growth forms evaluated.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+
+### Plot the Suitability Raster under RCP 8.5
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = RCP85) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+    labels = scales::label_number(suffix = "%")
+  )  +
+#### Add the legend title
+    labs(fill = "Suitability",
+         title = bquote("Per growth form suitability for late 21st century\nunder RCP 8.5 scenario.")) +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+
+```
+
+For both future conditions, the values presented are the *median* of the predictions per-GF over five different global circulation models (CCRM4, CNRM-CM5, FGOALS-g2, MIROC-ESM, and MPI-ESM-LR).
+
+## Estimating climate velocity
+
+The approach used to estimate the Velocity of phytoclimatic change (that is the magnitude and direction of the change vector). Build on the approach developed by @loarieVelocityClimateChange2009 were velocity for an environmental variable (e.g., temperature) is estimated as:
+  
+$$V_{l} = \frac{\text{d}c/\text{d}t}{\text{d}c/\text{d}x}$$
+    
+where $\frac{\text{d}c}{\text{d}t}$ is the the ration between the projected change per unit time; and $\frac{\text{d}c}{\text{d}x}$ is the local spatial gradient in the variable of interest.
+  
+Here, I apply this approach to each GF suitability maps rather than to a single climate variable (like in @serra-diazBioclimaticVelocityPace2014).
+
+The first step is to define the *temporal gradient* (i.e., $\frac{\text{d}c}{\text{d}t}$) that represents projected change per unit time. Furthermore, as only start and end conditions are available *anomaly (difference) between periods* (Present vs late 21^st^ century) divided by the time between the start (1996) and end (2070) points. This is the approach take in @sandelInfluenceLateQuaternary2011.
+
+```{r}
+#| label: TempChange
+#| warning: false
+
+### temporal gradient for RCP2.6 scenario
+RCP26Chng <- (RCP26 - Present)/74
+writeRaster(RCP26Chng,
+            "./Data/Future climate/Velocity/TempChng/RCP26_AllGF_TempChng.tif",
+            overwrite=TRUE)
+### temporal gradient for RCP2.6 scenario
+RCP85Chng <- (RCP85 - Present)/74
+writeRaster(RCP85Chng,
+            "./Data/Future climate/Velocity/TempChng/RCP85_AllGF_TempChng.tif",
+            overwrite=TRUE)
+```
+
+The expected change by the **late 21^st^-century** under RCP 2.6 (@fig-TempChngRCP26) looks like:
+
+```{r}
+#| label: fig-TempChngRCP26
+#| fig-cap: Absolute temporal gradient (% change per yr) in suitability under the RCP 2.6 scenario for all 14 growth forms evaluated. Values scaled as $X^(1/5)$ for ease of visualization.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+
+### Plot the temporal change Raster under RCP 2.6
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = abs(RCP26Chng)^(1/5)) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+  )  +
+#### Add the legend title
+    labs(fill = "Temp Chng\n[(% per Yr)^1/5]",
+         title = "Absolute temporal gradient under RCP 2.6 scenario.") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+```
+
+The expected change by the **late 21^st^-century** under RCP 8.5 (@fig-TempChngRCP85) looks like:
+
+```{r}
+#| label: fig-TempChngRCP85
+#| fig-cap: Absolute temporal gradient (% change per yr) in suitability under the RCP 8.5 scenario for all 14 growth forms evaluated. Values scaled as $X^(1/5)$ for ease of visualization.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+
+### Plot the temporal change Raster under RCP 8.5
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = abs(RCP85Chng)^(1/5)) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+  )  +
+#### Add the legend title
+    labs(fill = "Temp Chng\n[(% per Yr)^1/5]",
+         title = "Absolute temporal gradient under RCP 8.5 scenario.") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+```
+
+
+The second step is to estimating the spatial heterogeneity (change per unit space; i.e., $\frac{\text{d}c}{\text{d}x}$) as in [@burrowsPaceShiftingClimate2011], [@dobrowskiClimateVelocityContiguous2013] and [@ordonezMappingClimaticMechanisms2016]. The method estimates spatial heterogeneity as the "the slope of proportions" using the maximum average technique ([@burroughPrinciplesGeographicalInformation2015]).
+
+```{r}
+#| label: SpaceHet
+### Estimate the spatial gradients magnitude using a using the maximum average technique [Burrough & McDonnell 1998].
+SpaceHetRast <- lapply(names(Present),
+                       function(i){
+                         SpatHetFnc(Present[[i]])
+                       })
+SpaceHetRast <- do.call("c",SpaceHetRast)
+writeRaster(SpaceHetRast,
+            "./Data/Future climate/Velocity/SpatHet/AllGF_SpatHet.tif",
+            overwrite=TRUE)
+```
+
+The spatial gradient magnitude, estimated using a using the maximum average technique  (@fig-SpaceHet) looks like:
+
+```{r}
+#| label: fig-SpaceHet
+#| fig-cap: Spacial gradient (% change per km) in suitability for all 14 growth forms evaluated. Values scaled as $X^(1/5)$ for ease of visualization.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+
+### Plot the spatial heterogeneity
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = SpaceHetRast^(1/5)) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+  )  +
+#### Add the legend title
+    labs(fill = "Space Chng\n[(% per km)^1/5]",
+         title = "Spatial gradient [(% per km)^(1/5)]") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+```
+
+With  the spatial heterogeneity, and the temporal heterogeneity I can estimate the velocity as the ratio between these two. Here there is a need to do two corrections based on some mathematical issues of estimating ratios:
+
+1. if the spatial gradients zero (homogeneous area) velocity is set to the maximum.
+2. if the temporal heterogeneity is zero (no change in time) velocity is set to the minimum.
+
+
+```{r}
+#| label: Velocity
+
+## Estimate the Velocity vector magnitude (Speed) for changes based on RCP 2.6
+RCP26VelocityRast <- lapply(names(Present),
+                      function(i){
+                        Tmp <- VelocityFnc(RCP26Chng[[i]], SpaceHetRast[[i]])
+                        Tmp[which(Tmp[]>100)] <- 100 # ensure that the max is 100km per Yr
+                        Tmp[which(Tmp[]<0.01)] <- 0.01 # ensure that the max is 0.01km per Yr
+                        return(Tmp)
+                      })
+RCP26VelocityRast <- do.call("c",RCP26VelocityRast)
+writeRaster(RCP26VelocityRast,
+            "./Data/Future climate/Velocity/Velocity/RCP26_AllGF_Velocity.tif",
+            overwrite=TRUE)
+## Estimate the Velocity vector magnitude (Speed) for changes based on RCP 8.5
+RCP85VelocityRast <- lapply(names(Present),
+                      function(i){
+                        Tmp <- VelocityFnc(RCP26Chng[[i]], SpaceHetRast[[i]])
+                        Tmp[which(Tmp[]>100)] <- 100 # ensure that the max is 100km per Yr
+                        Tmp[which(Tmp[]<0.01)] <- 0.01 # ensure that the max is 0.01km per Yr
+                        return(Tmp)
+                      })
+RCP85VelocityRast <- do.call("c",RCP85VelocityRast)
+writeRaster(RCP85VelocityRast,
+            "./Data/Future climate/Velocity/Velocity/RCP85_AllGF_Velocity.tif",
+            overwrite=TRUE)
+```
+
+The expected velocity of Phytoclimates by the **late 21^st^-century** under RCP 2.6 (@fig-VelRCP26) looks like:
+
+```{r}
+#| label: fig-VelRCP26
+#| fig-cap: Velocity of change for Per Growth Form [km / yr] for all 14 growth forms evaluated under RCP 2.6 climatologies. Values scaled as $log10(X)$ for ease of visualization.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+
+### Plot the Velocity Raster under RCP 2.6
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = log10(RCP26VelocityRast)) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+  )  +
+#### Add the legend title
+    labs(fill = "Velocity\n[log10(km/Yr) ",
+         title = "Velocity of climate change [km/yr]\nunder RCP 2.6 scenario.") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+```
+
+The expected velocity of Phytoclimates by the **late 21^st^-century** under RCP 8.5     (@fig-VelRCP85) looks like:
+
+
+```{r}
+#| label: fig-VelRCP85
+#| fig-cap: Velocity of change for Per Growth Form [km / yr] for all 14 growth forms evaluated under RCP 2.6 climatologies. Values scaled as $log10(X)$ for ease of visualization.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+
+### Plot the Velocity Raster under RCP 8.5
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = log10(RCP85VelocityRast)) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+  )  +
+#### Add the legend title
+    labs(fill = "Velocity\n[log10(km/Yr)]",
+         title = "Velocity of climate change [km/yr]\nunder RCP 8.5 scenario.") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+```
+
+
+Last, I estimate the bearing of the vector. The calculation of the velocity vector bearing is determined by the East-West and North-South *components* of the spatial gradient. The sum of these define the magnitude and direction of vector of the spatial change (the one defining towards where the incline would move). The **bearing** of this resulting vector is the angle measured clockwise with 90o centered on the corresponding pole. Therefore, an angle ranging between 0 and 180 means the vector is Polewards bound and angles between 180 and 359 degrees is Equatorward bound. A 0 bearing means the vector is Eastbound in both the Northern and Southern hemisphere, and an angle of 180 is Westbound both the Northern and Southern hemisphere.
+
+
+```{r}
+#| label: BearingRast
+### Estimate the Bearing for considering the changes under RCP 2.6
+RCP26BearingRast <- lapply(names(Present),
+                      function(i){
+                        Tmp <- BearingFnc(c(Present[[i]],
+                                            RCP26[[i]]))
+                        return(Tmp)
+                      })
+RCP26BearingRast <- do.call("c",RCP26BearingRast)
+names(RCP26BearingRast) <- names(Present)
+writeRaster(RCP26BearingRast,
+            "./Data/Future climate/Velocity/Bearing/RCP26_AllGF_Bearing.tif",
+            overwrite=TRUE)
+### Estimate the Bearing for considering the changes under RCP 8.5
+RCP85BearingRast <- lapply(names(Present),
+                      function(i){
+                        Tmp <- BearingFnc(c(Present[[i]],
+                                            RCP85[[i]]))
+                        return(Tmp)
+                      })
+RCP85BearingRast <- do.call("c",RCP85BearingRast)
+names(RCP85BearingRast) <- names(Present)
+writeRaster(RCP85BearingRast,
+            "./Data/Future climate/Velocity/Bearing/RCP85_AllGF_Bearing.tif",
+            overwrite=TRUE)
+
+```
+
+Considering the current spatial pattern and changes under RCP 2.6 the bearing of Phytoclimates velocity vectors (@fig-BearRCP26) looks like:
+
+```{r}
+#| label: fig-BearRCP26
+#| fig-cap: Bearing of velocity of change vectors for Per Growth Form [Degrees from East] for all 14 growth forms evaluated under RCP 2.6 climatologies.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+
+# plot the Spatial gradient considering change under RCP 2.6
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = RCP26BearingRast) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+  )  +
+#### Add the legend title
+    labs(fill = "Bearing\n[Degrees]",
+         title = "Bearing [Degrees from East]\nunder RCP 2.6 scenario.") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+```
+
+Considering the current spatial pattern and changes under RCP 8.5 the bearing of Phytoclimates velocity vectors (@fig-BearRCP85) looks like:
+
+
+```{r}
+#| label: fig-BearRCP85
+#| fig-cap: Bearing of velocity of change vectors for Per Growth Form [Degrees from East] for all 14 growth forms evaluated under RCP 8.5 climatologies.
+#| fig-width: 13
+#| fig-height: 16
+#| warning: false
+
+# plot the Spatial gradient considering change under RCP 2.6
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = RCP85BearingRast) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 2) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+  )  +
+#### Add the legend title
+    labs(fill = "Bearing\n[Degrees]",
+         title = "Bearing [Degrees from East]\nunder RCP 8.5 scenario.") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+```
+
+With all this information we can now estimate the displacement of phytoclimatic change and use it as a metric of Ecological Novelty. As defined in [@ordonezMappingClimaticMechanisms2016], displacement of climatic vectors is the geometric mean of multiple velocity vectors. This metric indicates how "fast" would/will an environmental setup (weighting all variables equally) would move given the balance of local environmental gradients and temporal trends in environmental variables. A fast displacement suggests that the magnitudes of velocity vectors (i.e., speed) are rather large, whereas slow displacement indicate that the magnitudes of velocity vectors is small across evaluated growth forms.
+
+
+```{r}
+#| label: Displacement
+
+### Displacement under RCP2.6
+RCP26Displace <- 10^(mean(log10(RCP26VelocityRast)))
+writeRaster(RCP26Displace,
+            "./Data/Future climate/Displacement/RCP26_AllGF_Displacement.tif",
+            overwrite=TRUE)
+### Displacement under RCP8.5
+RCP85Displace <- 10^(mean(log10(RCP85VelocityRast)))
+writeRaster(RCP85Displace,
+            "./Data/Future climate/Displacement/RCP85_AllGF_Displacement.tif",
+            overwrite=TRUE)
+```
+
+Visualizing the displacement of Phytoclimates under both RCP 2.6 and 8.5 (@fig-Displacement) looks like:
+
+```{r}
+#| label: fig-Displacement
+#| fig-cap: Displacement [km / yr] estimated as the geometric mean over the velocity vector magnitudes across all 14 growth forms evaluated under both RCP 2.6 and 8.5 climatologies. Values scaled as $log10(X)$ for ease of visualization.
+#| warning: false
+
+### Plot the displacement Raster under RCP 2.6
+DisplaceStack <- log10(c(RCP26Displace,RCP85Displace))
+names(DisplaceStack) <- c("RCP26","RCP85")
+
+
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = DisplaceStack) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 1) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+  )  +
+#### Add the legend title
+    labs(fill = "Displacement\n[log10(km/yr)]",
+         title = "Displacement of climate change [km / yr]") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+
+```
+
+An important visualization to add here is the relation between the mean of log~10~-Velocities (i.e., displacement) and the variation (SD) in these vectors under the RCP2.6 (@fig-Disp2DChoropleth1) and RCP 8.5 (@fig-Disp2DChoropleth2).
+
+```{r}
+#| label: fig-Disp2DChoropleth1
+#| fig-cap: Match between the mean and variability in the magnitude of velocity vectors across Growth forms under RCP 2.6 scenario
+#| warning: false
+
+RCP26DisplaceMean <- app(log10(RCP26VelocityRast),mean)
+RCP26DisplaceMeanScl <- app(RCP26DisplaceMean,
+                            function(x){scales::rescale(x,
+                                                        from = as.numeric(minmax(RCP26DisplaceMean)))})
+RCP26DisplaceSD <- app(log10(RCP26VelocityRast),sd)
+RCP26DisplaceSDScl <- app(RCP26DisplaceSD,
+                            function(x){scales::rescale(x,
+                                                        from = as.numeric(minmax(RCP26DisplaceSD)))})
+
+RCP26Displace2D <- c(RCP26DisplaceMeanScl,
+                     RCP26DisplaceSDScl)
+
+RCP26Displace2dRGB <- app(RCP26Displace2D,
+                          interpolate)
+par(fig=c(0,1,0,1),new = FALSE)
+plotRGB(RCP26Displace2dRGB,
+        scale=1,
+        stretch="lin",
+        addfun = function(){plot(wrld_simpl,add=T)})
+par(fig=c(0.1,0.33,0.1,0.30),new = TRUE)
+X <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100,
+                 byrow = T))
+Y <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100))
+
+XY <- c(X,Y)
+XYRGB <- app(XY,
+             interpolate)
+plotRGB(XYRGB, scale=1,
+        stretch="lin")
+axis(1,
+     at = seq(0,100,length.out=5),
+     labels = NA,#10^(-2:2),
+     mgp=c(3,0.2,0.5)
+     )
+text(x=seq(0,100,length.out=5),
+     y=-25,
+     labels=10^(-2:2),
+     xpd=NA,
+     srt=60)
+mtext("Mean",side=1, line=2,xpd=NA)
+axis(2,
+     at = seq(0,100,length.out=3),
+     labels = NA,#10^(0:2),
+     mgp=c(3,0.2,0))
+text(y=seq(0,100,length.out=3),
+     x=-25,
+     labels=10^(0:2),
+     xpd=NA,
+     srt=60,
+     las=2)
+mtext("SD",side=2, line = 2)
+
+```
+
+```{r}
+#| label: fig-Disp2DChoropleth2
+#| fig-cap: Match between the mean and variability in the magnitude of velocity vectors across Growth forms under RCP 8.5 scenario
+#| warning: false
+
+RCP85DisplaceMean <- app(log10(RCP85VelocityRast),mean)
+RCP85DisplaceMeanScl <- app(RCP85DisplaceMean,
+                            function(x){scales::rescale(x,
+                                                        from = as.numeric(minmax(RCP85DisplaceMean)))})
+RCP85DisplaceSD <- app(log10(RCP85VelocityRast),sd)
+RCP85DisplaceSDScl <- app(RCP85DisplaceSD,
+                          function(x){scales::rescale(x,
+                                                      from = as.numeric(minmax(RCP85DisplaceSD)))})
+
+RCP85Displace2D <- c(RCP85DisplaceMeanScl,
+                     RCP85DisplaceSDScl)
+
+RCP85Displace2dRGB <- app(RCP85Displace2D,
+                          interpolate)
+par(fig=c(0,1,0,1),new = FALSE)
+plotRGB(RCP85Displace2dRGB,
+        scale=1,
+        stretch="lin",
+        addfun = function(){plot(wrld_simpl,add=T)})
+par(fig=c(0.1,0.33,0.1,0.30),new = TRUE)
+X <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100,
+                 byrow = T))
+Y <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100))
+
+XY <- c(X,Y)
+XYRGB <- app(XY,
+             interpolate)
+plotRGB(XYRGB, scale=1,
+        stretch="lin")
+axis(1,
+     at = seq(0,100,length.out=5),
+     labels = NA,#10^(-2:2),
+     mgp=c(3,0.2,0.5)
+)
+text(x=seq(0,100,length.out=5),
+     y=-25,
+     labels=10^(-2:2),
+     xpd=NA,
+     srt=60)
+mtext("Mean",side=1, line=2,xpd=NA)
+axis(2,
+     at = seq(0,100,length.out=3),
+     labels = NA,#10^(0:2),
+     mgp=c(3,0.2,0))
+text(y=seq(0,100,length.out=3),
+     x=-25,
+     labels=10^(0:2),
+     xpd=NA,
+     srt=60,
+     las=2)
+mtext("SD",side=2, line = 2)
+
+```
+
+Likewise, using the bearing of the velocity vectors I estimate the divergence of phytoclimatic vectors as the standard deviations of bearings as in [@burkeDifferingClimaticMechanisms2019]. This metric indicates how "variable" are the directions of velocity vectors in a given location for the 14 evaluated growth forms. A low divergence suggests that all velocity vectors of all climate variables would tend to shift along the same axis of direction, whereas high divergences indicate that velocity vectors lack congruence in orientation and hence so might species distribution shifts.
+
+```{r}
+#| label: Divergence
+### Estimate the Divergence considering the changes under RCP 2.6
+RCP26Divergence <- app(RCP26BearingRast,sd,na.rm=T)
+writeRaster(RCP26Divergence,
+            "./Data/Future climate/Divergence/RCP26_AllGF_Divergence.tif",
+            overwrite=TRUE)
+### Estimate the Divergence considering the changes under RCP 8.5
+RCP85Divergence <- app(RCP85BearingRast,sd,na.rm=T)
+writeRaster(RCP85Divergence,
+            "./Data/Future climate/Divergence/RCP85_AllGF_Divergence.tif",
+            overwrite=TRUE)
+```
+
+Visualizing the Divergence of Phytoclimates under both RCP 2.6 and 8.5 (@fig-Divergence) looks like:
+
+```{r}
+#| label: fig-Divergence
+#| fig-cap: Divergence [Degrees] estimated as the stand deviation over the velocity vector bearings across all 14 growth forms evaluated under both RCP 2.6 and 8.5 climatologies.
+#| warning: false
+
+### Plot the Divergence Raster under RCP 2.6
+DivergenceStack <- c(RCP26Divergence,RCP85Divergence)
+names(DivergenceStack) <- c("RCP26","RCP85")
+
+# plot the Divergence gradient
+ggplot(wrld_simpl2) +
+  geom_spatraster(data = DivergenceStack) +
+# Define how to plot the panels  
+  facet_wrap(~lyr, ncol = 1) +
+#### Define the legend Gradient scales (_C if for continuous vars) 
+  scale_fill_whitebox_c(
+    palette = "muted",  # The mutted scale is blue to yellow to red
+    )  +
+#### Add the legend title
+    labs(fill = "Divergence\n[Degrees]",
+         title = "Divergence [Degrees]") +
+#### Add the country outlines
+  geom_spatvector(fill = NA,
+                  col="black") +
+  theme(plot.title = element_text(face = "bold"),
+        plot.margin = unit(c(1,0,1,0), "pt"))
+```
+
+Likewise, for displacement, visualizing the relation between the mean of Bearings (i.e., Overall directional) and the variation (SD) in these vectors (divergence) under RCP 2.6 (@fig-Div2DChoropleth1) and RCP 8.5 (@fig-Div2DChoropleth2) can provide a sense of convergence and direction of the iso-cline movement change.
+
+```{r}
+#| label: fig-Div2DChoropleth1
+#| fig-cap: Match between the mean and variability in the direction of velocity vectors across growth forms under RCP 2.6 scenario
+#| warning: false
+RCP26DivergenceMean <- app(RCP26BearingRast,mean)
+RCP26DivergenceMeanScl <- app(RCP26DivergenceMean,
+                            function(x){scales::rescale(x,
+                                                        from = as.numeric(minmax(RCP26DivergenceMean)))})
+RCP26DivergenceSD <- app(RCP26BearingRast,sd)
+RCP26DivergenceSDScl <- app(RCP26DivergenceSD,
+                          function(x){scales::rescale(x,
+                                                      from = as.numeric(minmax(RCP26DivergenceSD)))})
+
+RCP26Divergence2D <- c(RCP26DivergenceMeanScl,
+                     RCP26DivergenceSDScl)
+
+RCP26Divergence2dRGB <- app(RCP26Divergence2D,
+                          interpolate)
+par(fig=c(0,1,0,1),new = FALSE)
+plotRGB(RCP26Divergence2dRGB,
+        scale=1,
+        stretch="lin",
+        addfun = function(){plot(wrld_simpl,add=T)})
+par(fig=c(0.1,0.33,0.1,0.30),new = TRUE)
+X <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100,
+                 byrow = T))
+Y <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100))
+
+XY <- c(X,Y)
+XYRGB <- app(XY,
+             interpolate)
+plotRGB(XYRGB, scale=1,
+        stretch="lin")
+axis(1,
+     at = seq(0,100,length.out=5),
+     labels = NA,#10^(-2:2),
+     mgp=c(3,0.2,0.5)
+)
+text(x=seq(0,100,length.out=5),
+     y=-25,
+     labels=c("East","Pole","West","Equat","East"),
+     xpd=NA,
+     cex=0.8,
+     srt=60)
+mtext("Mean-Dir",side=1, line=2.5 ,xpd=NA)
+axis(2,
+     at = seq(0,100,length.out=3),
+     labels = NA,#10^(0:2),
+     mgp=c(3,0.2,0))
+text(y=seq(0,100,length.out=3),
+     x=-25,
+     labels=c(0,90,180),
+     xpd=NA,
+     srt=60,
+     las=2)
+mtext("SD",side=2, line = 2)
+```
+
+```{r}
+#| label: fig-Div2DChoropleth2
+#| fig-cap: Match between the mean and variability in the direction of velocity vectors across growth forms under RCP 8.5 scenario
+#| warning: false
+RCP85DivergenceMean <- app(RCP85BearingRast,mean)
+RCP85DivergenceMeanScl <- app(RCP85DivergenceMean,
+                            function(x){scales::rescale(x,
+                                                        from = as.numeric(minmax(RCP85DivergenceMean)))})
+RCP85DivergenceSD <- app(RCP85BearingRast,sd)
+RCP85DivergenceSDScl <- app(RCP85DivergenceSD,
+                          function(x){scales::rescale(x,
+                                                      from = as.numeric(minmax(RCP85DivergenceSD)))})
+
+RCP85Divergence2D <- c(RCP85DivergenceMeanScl,
+                     RCP85DivergenceSDScl)
+
+RCP85Divergence2dRGB <- app(RCP85Divergence2D,
+                          interpolate)
+par(fig=c(0,1,0,1),new = FALSE)
+plotRGB(RCP85Divergence2dRGB,
+        scale=1,
+        stretch="lin",
+        addfun = function(){plot(wrld_simpl,add=T)})
+par(fig=c(0.1,0.33,0.1,0.30),new = TRUE)
+X <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100,
+                 byrow = T))
+Y <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100))
+
+XY <- c(X,Y)
+XYRGB <- app(XY,
+             interpolate)
+plotRGB(XYRGB, scale=1,
+        stretch="lin")
+axis(1,
+     at = seq(0,100,length.out=5),
+     labels = NA,#10^(-2:2),
+     mgp=c(3,0.2,0.5)
+)
+text(x=seq(0,100,length.out=5),
+     y=-25,
+     labels=c("East","Pole","West","Equat","East"),
+     xpd=NA,
+     cex=0.8,
+     srt=60)
+mtext("Mean-Dir",side=1, line=2.5 ,xpd=NA)
+axis(2,
+     at = seq(0,100,length.out=3),
+     labels = NA,#10^(0:2),
+     mgp=c(3,0.2,0))
+text(y=seq(0,100,length.out=3),
+     x=-25,
+     labels=c(0,90,180),
+     xpd=NA,
+     srt=60,
+     las=2)
+mtext("SD",side=2, line = 2)
+
+```
+
+With a map of displacement and divergence we can now define areas based on how fast are velocity vectors moving, and how congruent is the relation of change of these. This will be done in the form of a 2D-choropleth map for the outputs from RCP 2.6 [(@fig-2DChoropleth1a) & (@fig-2DChoropleth1b)] and RCP 8.5 [(@fig-2DChoropleth2a) & (@fig-2DChoropleth2b)] .
+
+```{r}
+#| label: fig-2DChoropleth1a
+#| fig-cap: Match between the mean and variability in the direction of velocity vectors across growth forms under RCP 2.6 scenario
+#| warning: false
+
+# Scaling the Displacement Mean
+RCP26DisplaceScl <- app(round(log10(RCP26Displace)),
+                        function(x){scales::rescale(x,
+                                                    from = as.numeric(minmax(round(log10(RCP26Displace)))))})
+
+# Scaling the Divergence SD
+RCP26DivergenceScl <-  app(round(RCP26Divergence),
+                           function(x){scales::rescale(x,from = as.numeric(minmax(round(RCP26Divergence))))})
+
+# Merge Displacement and Divergence raster
+RCP262d <- c(RCP26DisplaceScl,
+             RCP26DivergenceScl)
+# Estimate RGB combo
+RCP262dRGB <- app(RCP262d,
+                  interpolate)
+# plot the RGB combination for
+par(fig=c(0,1,0,1),new = FALSE)
+plotRGB(RCP262dRGB,
+        scale=1,
+        stretch="lin",
+        addfun = function(){plot(wrld_simpl,add=T)})
+mtext("RCP 2.6 Displacement - Divergence 2D",cex=2,line=-4)
+
+# The legend
+par(fig=c(0.1,0.33,0.1,0.30),new = TRUE)
+X <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100,
+                 byrow = T))
+Y <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100))
+
+XY <- c(X,Y)
+XYRGB <- app(XY,
+             interpolate)
+plotRGB(XYRGB, scale=1,
+        stretch="lin")
+axis(1,
+     at = seq(0,100,length.out=5),
+     labels = NA,#10^(-2:2),
+     mgp=c(3,0.2,0.5)
+)
+text(x=seq(0,100,length.out=5),
+     y=-25,
+     labels=10^(-2:2),
+     cex=0.8,
+     xpd=NA,
+     srt=60)
+mtext("Displacement",side=1, line=2.5 ,xpd=NA)
+axis(2,
+     at = seq(0,100,length.out=5),
+     labels = NA,#10^(0:2),
+     mgp=c(3,0.2,0))
+text(y=seq(0,100,length.out=5),
+     x=-25,
+     labels=c("East","Pole","West","Equat","East"),
+     xpd=NA,
+     cex=0.8,
+     las=2,
+     srt=60)
+mtext("Divergenece",side=2, line=2.5 ,xpd=NA)
+
+```
+
+```{r}
+#| label: fig-2DChoropleth1b
+#| fig-cap: Match between the Displacement [km/yr] and Divergence [Degrees] under both RCP 2.6
+#| warning: false
+
+# Scaling the Displacement Mean
+ggplot(wrld_simpl2) +
+  geom_spatraster_rgb(data = RCP262dRGB,
+                      max_col_value =1) +
+  geom_spatvector(fill = NA,
+                 col="black")
+```
+
+```{r}
+#| label: fig-2DChoropleth2a
+#| fig-cap: Match between the mean and variability in the direction of velocity vectors across growth forms under RCP 8.5 scenario
+#| warning: false
+# Scaling the Displacement Mean
+RCP85DisplaceScl <- app(round(log10(RCP85Displace)),
+                        function(x){scales::rescale(x,
+                                                    from = as.numeric(minmax(round(log10(RCP85Displace)))))})
+
+# Scaling the Divergence SD
+RCP85DivergenceScl <-  app(round(RCP85Divergence),
+                           function(x){scales::rescale(x,from = as.numeric(minmax(round(RCP85Divergence))))})
+
+# Merge Displacement and Divergence raster
+RCP852d <- c(RCP85DisplaceScl,
+             RCP85DivergenceScl)
+# Estimate RGB combo
+RCP852dRGB <- app(RCP852d,
+                  interpolate)
+# plot the RGB combination for
+par(fig=c(0,1,0,1),new = FALSE)
+plotRGB(RCP852dRGB,
+        scale=1,
+        stretch="lin",
+        addfun = function(){plot(wrld_simpl,add=T)})
+mtext("RCP 8.5 Displacement - Divergence 2D ",cex=2,line=-4)
+
+# The legend
+par(fig=c(0.1,0.33,0.1,0.30),new = TRUE)
+X <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100,
+                 byrow = T))
+Y <- rast(matrix(rep(seq(0,
+                         1,
+                         length.out=100),
+                     each=100),
+                 nrow=100))
+
+XY <- c(X,Y)
+XYRGB <- app(XY,
+             interpolate)
+plotRGB(XYRGB, scale=1,
+        stretch="lin")
+axis(1,
+     at = seq(0,100,length.out=5),
+     labels = NA,#10^(-2:2),
+     mgp=c(3,0.2,0.5)
+)
+text(x=seq(0,100,length.out=5),
+     y=-25,
+     labels=10^(-2:2),
+     cex=0.8,
+     xpd=NA,
+     srt=60)
+mtext("Displacement",side=1, line=2.5 ,xpd=NA)
+axis(2,
+     at = seq(0,100,length.out=5),
+     labels = NA,#10^(0:2),
+     mgp=c(3,0.2,0))
+text(y=seq(0,100,length.out=5),
+     x=-25,
+     labels=c("East","Pole","West","Equat","East"),
+     xpd=NA,
+     cex=0.8,
+     las=2,
+     srt=60)
+mtext("Divergenece",side=2, line=2.5 ,xpd=NA)
+```
+
+```{r}
+#| label: fig-2DChoropleth2b
+#| fig-cap: Match between the Displacement [km/yr] and Divergence [Degrees] under both RCP 8.5
+#| warning: false
+
+# Scaling the Displacement Mean
+ggplot(wrld_simpl2) +
+  geom_spatraster_rgb(data = RCP852dRGB,
+                      max_col_value =1) +
+  geom_spatvector(fill = NA,
+                  col="black")
+```
+
+
