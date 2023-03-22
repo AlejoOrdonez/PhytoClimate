@@ -26,13 +26,18 @@ Dates <- list(All = seq(-22.0,1,0.5), # All time periods
               Holocene = seq(-11.5,0,0.5), # Holocene
               GS1 = seq(-13, -11.5,0.5), # The same as YD
               GI1 = seq(-14.5,-13,0.5), # The same as BA
-              GS2 = seq(-21.0,-14.5,0.5) # PostLGM
+              GS2 = seq(-21.0,-14.5,0.5), # PostLGM
+              WarmBA = seq(-15.5,-13.5,0.5), # BA onset warming
+              WarmPostYD = seq(-12.5,-9.5,0.5) # BA onset warming
               )
+
+MethodsUse <- c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")
+
 # I will loop over all Methods 
-for(MethodUse in c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")){
+for(MethodUse in MethodsUse){
 #(MethodUse <- "AbsDif")
 # I will loop over all periods 
-  for(TimePer in names(Dates)[2]){#(TimePer<- names(Dates)[2])
+  for(TimePer in names(Dates)){#(TimePer<- names(Dates)[2])
     TimePerUse <- Dates[[TimePer]] # Extract the dates
     TimePerUse <- which(seq(-21,0,0.5)%in%TimePerUse) # Turn dates into points in the chronology 
     for(GF.Use in NamesDtFrm$Acro2){#(GF.Use <- NamesDtFrm$Acro2[1])
@@ -104,8 +109,8 @@ for(MethodUse in c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")){
 #plot(log10(Velocity))
 
 ## **Fifth**: Estimate the displacement magnitude (i.e., speed).
-for(MethodUse in c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")){#(MethodUse <- "AbsDif")
-  for(TimePer in names(Dates)[2]){#(TimePer<- names(Dates)[2])
+for(MethodUse in MethodsUse){#(MethodUse <- "AbsDif")
+  for(TimePer in names(Dates)){#(TimePer<- names(Dates)[2])
     if(length(dir(paste0("./Data/LGM/Velocity/Velocity_",MethodUse,"/"),
                   pattern=TimePer))>0){
 # Load the Velocity vectors
@@ -134,7 +139,7 @@ for(MethodUse in c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")){#(MethodUse <
   }
 }
 ## **Sxith**: Estimate the Divergence of velocity vectors (i.e., sd).
-for(TimePer in names(Dates)[2]){#(TimePer<- names(Dates)[2])
+for(TimePer in names(Dates)){#(TimePer<- names(Dates)[2])
 # Load the Velocity vectors
     BearingByGF <- lapply(NamesDtFrm$Acro2,
                            function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
