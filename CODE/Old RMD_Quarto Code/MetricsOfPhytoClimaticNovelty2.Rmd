@@ -1,0 +1,569 @@
+---
+title: "Novelty metrics"
+author: "Alejandro Ordonez"
+date: '`r Sys.Date()`'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+## 
+#setwd("~/Dropbox/Other Papers in progress/[Conradi] Phytoclimate  Velocity")
+setwd("~/Library/CloudStorage/Dropbox/Other Papers in progress/[Conradi] Phytoclimate  Velocity")
+#setwd("D:/Alejo/PhytoClimates")
+## Load the required packages
+library(terra)
+library(analogue)
+library(nlme)
+library(snowfall)
+
+## Load the Data
+### Load growth form data [21kaBP to present on 500Yrs intervals] last one is 2070 second to last is 1950
+pml <- readRDS("./Data/gf_suitab_matrices.rds")
+### Coordinates of the grid cells
+xy <- readRDS("./Data/cell_coordinates.rds")
+### Raster template
+cr.ea <- rast("./Data/raster_template.tif")
+### Matrix of names
+NamesDtFrm <- data.frame(Acro1 = c("TE", "TDdry", "TDcold", "TN", "ShE", "ShDdry", "ShDcold","H","Geo", "Thero", "GC3", "GC4", "Suc", "Clim"),
+                         Acro2 = c("TE", "TD_dry", "TD_cold", "TN", "ShrE", "ShrD_dry", "ShrD_cold", "H","HGeo", "HThero", "G_C3", "G_C4", "Suc", "C"),
+                         Name = c("Evergreen trees", "Drought-deciduous trees", "Cold-deciduous trees", "Needleleaf trees", "Evergreen shrubs", "Drought-deciduous shrubs", "Cold-deciduous shrubs","Herbs", "Geophytes", "Therophytes", "C3 grasses", "C4 grasses", "Succulents", "Climbers"))
+
+```
+
+## The setup.
+
+Here I will be exploring how we can translate the novelty metrics in [Ordonez et al (2016) Nat Clim Change](https://doi.org/10.1038/nclimate3127) into Conradi et al. (in review) work on Phyto-climates that builds on his work on [Operationalizing the definition of the biome for global change research](https://doi.org/10.1111/nph.16580).
+
+
+## Input information.
+
+Here I will use the maps of growth form (GF) suitability for 14 GF:
+
+|  **Acronym**  |       **Name**            |
+|---------------|---------------------------|
+| TE            | evergreen trees           |
+| TDdry         | drought-deciduous trees   |
+| TDcold        | cold-deciduous trees      |
+| TN            | needle-leaf trees          |
+| ShE           | evergreen shrubs          |
+| ShDdry        | drought-deciduous shrubs  |
+| ShDcold       | cold-deciduous shrubs     |
+| H             | Herbs                     |
+| HGeo          | Herbs geophytes           |
+| HThero        | Herbs therophytes         |
+| GC3           | C3 grasses                |
+| GC4           | C4 grasses                |
+| Suc           | succulents                |
+| Clim          | climbers                  |
+
+
+## Assessing Ecological Novelty 
+
+The novelty metrics in [Ordonez et al (2016) Nat Clim Change](https://doi.org/10.1038/nclimate3127) focus on measuring three different mechanisms by which ecological novelty might emerge:
+
+
+### Compositional Novelty 
+
+This mechanism is based on the idea that as environmental changes happen the composition of taxa on a site will change change, and therefore you would like to assess of this change means that this assemblage is new when compared to past assemablages.
+
+To measure this, we focus on the compositional rearrangement of a location due to environmental changes. In those situations where current communities that are compositionally (significantly) different to those found in the past, we can consider that these assemblages are *"novel"*. Conceptual this idea links to [Willians et al (2007)](https://doi.org/10.1073/pnas.0606292104) and [Willians & Jackson (2007)](https://doi.org/10.1890/070037) discussions on Novel climates and no-analog communities.
+
+Core to measuring novelty is the directionality of the contrasts - **Current conditions vs.. ALL past cells**. Therefore, to start we need to load the suitability per-growth form under the current environmental conditions (here defined as 1950 values):
+
+```{r Maps0kaBP, fig.cap="**Fig 2**. *Present (1950) suitability per-growth form.*"}
+## Make suitability raster for all growth forms for the present time step [1950] - 45th slot in the data list 
+Maps0kaBPlist <- lapply(dimnames(pml[[45]])[[2]],
+                       function(i){
+                         rasterize(x = as.matrix(xy), # points as a matrix
+                                   y = cr.ea, #  template raster
+                                   values = pml[[45]][, i] # Values to aggregate
+                                   )
+                         })
+# Turn the list into a multi-layer SpatRaster
+Maps0kaBP <- do.call("c",Maps0kaBPlist)
+rm(Maps0kaBPlist);gc()
+# Add the GF names to each layer
+names(Maps0kaBP) <- NamesDtFrm$Name[match(dimnames(pml[[1]])[[2]],NamesDtFrm$Acro2)]
+# Plot the map
+plot(Maps0kaBP,
+     range = c(0,0.75))
+## Generate a data.frame of cells with data for present conditions
+Maps0kaBPTble <- values(Maps0kaBP,
+                        dataframe = TRUE,
+                        na.rm = TRUE)
+```
+
+After this, we need to load the suitability per-growth form under past environmental conditions (here defined as the Last Glacial Maximum (21kaBP) values):
+
+```{r Maps21kaBP, fig.dim = c(10,8), fig.cap="**Fig 1**. *Past (21kaBP) Suitability per-growth form*"}
+## Make suitability raster for all growth forms for the first time step [21kaBP?]
+Maps21kaBPlist <- lapply(dimnames(pml[[1]])[[2]],
+                       function(i){
+                         rasterize(x = as.matrix(xy), # points as a matrix
+                                   y = cr.ea, #  template raster
+                                   values = pml[[1]][, i] # Values to aggregate
+                                   )
+                         })
+# Turn the list into a multi-layer SpatRaster
+Maps21kaBP <- do.call("c",Maps21kaBPlist)
+rm(Maps21kaBPlist)
+# Add the GF names to each layer
+names(Maps21kaBP) <- NamesDtFrm$Name[match(dimnames(pml[[1]])[[2]],NamesDtFrm$Acro2)]
+# Plot the map
+plot(Maps21kaBP,
+     range = c(0,0.75))
+## Generate a data.frame of cells with data for past conditions
+Maps21kaBPTble<- values(Maps21kaBP,
+                        dataframe = TRUE,
+                        na.rm = TRUE)
+
+```
+
+The values in the two figures above are defined as the proportion of the species within a growth form for which the environmental conditions at 50x50km a grid-cell are considered suitable at a given period (here 1950 and 21kaBP). 
+
+This Suitability is based on a Eco-physiological species distribution Model (*INSERT NAME HERE*).
+
+Now with the adequate temporal data (i.e., **Current & Past conditions**) we can estimate novelty. As stated above, the Current conditions vs. ALL past cells approach to estimate novelty means that for each current cell, we will have a large number of possible contrasts based on an adequate distance metric (e.g., (Squared) chord-distance or $\chi^2$-distance for composition data; Euclidean distance for uncorrelated environmental data, or Mahalanobis distance for correlated environmental data).
+
+Given that the data we have for growth-form suitability is the proportion of species within a group for which the evaluated cell has suitable conditions (similar to proportion of species) I will use the Min Chord distance as suggested by [Simpson (2007)](https://doi.org/10.18637/jss.v022.i02), [Overpeck et al. 1985](https://doi.org/10.1016/0033-5894(85)90074-2) and [Gavin et al. 2003](https://doi.org/10.1016/S0033-5894(03)00088-7).
+
+The chord distance between samples $j$ and $k$, $d_{jk}$, is:
+
+$$d_{jk} = \sqrt{\sum_{k=1}^{m}( x_{jk}^{0.5} - x_{ik}^{0.5})^2}$$
+Where $x_{ij}$ is the proportion of growth from $i$ in sample $k$. Note that other dissimilarity metrics could be used, and they are implemented in the [`anaolgue`](https://cran.r-project.org/web/packages/analogue/index.html) package.
+
+With all the pairwise distances estimated, a technique used to estimate site novelty (as in Williams et al (2007)](https://doi.org/10.1073/pnas.0606292104); [Willians & Jackson (2007)](https://doi.org/10.1890/070037); [Ordonez et al. 2014](https://doi.org/10.1038/nclimate2337) and [Ordonez et al. 2016](https://doi.org/10.1038/nclimate3127)) is to retain the minimum dissimilarity value of the contrast between the target assemblage (here *1950's sites*) and all sites in the reference period (here 21kaBP). This technique is similar to the analogue matching approach in paleoecology ([Overpeck et al. 1985](https://doi.org/10.1016/0033-5894(85)90074-2) ; [Flower et al. 1997](https://doi.org/10.1023/A:1002941908602)).
+
+Now using the Min Chord distance (as implemented in `anaolgue`), we estimate (using a parallel computing approach) the novelty of each cell in `Maps0kaBP` [the present growth from suitability measured based on 1950 climates] when compared to the Last Glacial Maximum growth from suitability as presented in `Maps21kaBP`:
+
+```{r CordDistEst}
+# Calculate the Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
+if(!"CordD_min.tif"%in%dir("./Data/")){
+  a<-Sys.time()
+# Create a virtual cluster
+  sfInit(cpus=10,parallel=TRUE)
+## Export packages
+  sfLibrary(analogue)
+## Export Data
+  sfExport("Maps0kaBPTble")
+  sfExport("Maps21kaBPTble")
+
+# Calculate the Squared Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
+  CordDistSumList <- sfLapply(1:dim(Maps0kaBPTble)[1],#(x<-1)
+                              function(x, DistMet = "chord"){
+                                DistCalc <- analogue::distance(x = Maps0kaBPTble[x,],
+                                                               y = Maps21kaBPTble,
+                                                               method = DistMet,
+                                                               double.zero = TRUE)
+                                
+                                min(DistCalc,na.rm=T)
+                              })
+  sfStop();gc()
+  CordDistSum <- data.frame(Dist = do.call("c",CordDistSumList),
+                            CellID = as.numeric(rownames(Maps0kaBPTble)))
+  rm(CordDistSumList);gc()
+  write.csv(CordDistSum,"./Data/CordDist_min.csv")
+# Turn the Min Chord distance per cell into a raster
+#CordDistSum <- read.csv("./Data/CordDist_min.csv") # Load data
+  CordDistRast <- rast(Maps0kaBP[[1]]) # create the empty raster
+  values(CordDistRast) <- NA # fill with empty data
+  names(CordDistRast) <- "minCordDist" # change layer name
+  values(CordDistRast)[CordDistSum$CellID] <- CordDistSum$Dist # add the ChordD.min data
+# Save the 
+  writeRaster(CordDistRast,
+              "./Data/CordD_min.tif",
+              overwrite=TRUE)
+  Sys.time()-a # Should clock about 3 to 5 minutes
+}
+
+# Load the CordDistRast raster if you don't run the Min Chord distance per cell estimation
+if(!"CordDistRast"%in%ls()){
+  CordDistRast <- rast("./Data/CordD_min.tif")
+}
+# plot the minimum chord distance
+plot(CordDistRast,
+     main = "Min chord distance")
+```
+
+I also do this estimation using a Chi-Squared distance:
+
+```{r ChiDistEst}
+# Calculate the Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
+if(!"CordD_min.tif"%in%dir("./Data/")){
+  a<-Sys.time()
+  # Create a virtual cluster
+  sfInit(cpus=10,parallel=TRUE)
+  ## Export packages
+  sfLibrary(analogue)
+  ## Export Data
+  sfExport("Maps0kaBPTble")
+  sfExport("Maps21kaBPTble")
+  
+  # Calculate the Squared Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
+  ChiDistSumList <- sfLapply(1:dim(Maps0kaBPTble)[1],#(x<-1)
+                              function(x, DistMet = "chi.square"){
+                                DistCalc <- analogue::distance(x = Maps0kaBPTble[x,],
+                                                               y = Maps21kaBPTble,
+                                                               method = DistMet,
+                                                               double.zero = TRUE)
+                                
+                                min(DistCalc,na.rm=T)
+                              })
+  sfStop()
+  ChiDistSum <- data.frame(Dist = do.call("c",ChiDistSumList),
+                            CellID = as.numeric(rownames(Maps0kaBPTble)))
+  rm(ChiDistSumList);gc()
+  write.csv(ChiDistSum,"./Data/ChiDist_min.csv")
+  
+  # Turn the Min Chord distance per cell into a raster
+  #ChiDistSum <- read.csv("./Data/ChiDist_min.csv") # Load data
+  ChiDistRast <- rast(Maps0kaBP[[1]]) # create the empty raster
+  values(ChiDistRast) <- NA # fill with empty data
+  names(ChiDistRast) <- "minChiDist" # change layer name
+  values(ChiDistRast)[ChiDistSum$CellID] <- ChiDistSum$Dist # add the ChordD.min data
+  # Save the 
+  writeRaster(ChiDistRast,
+              "./Data/ChiD_min.tif",
+              overwrite=TRUE)
+  Sys.time()-a # Should clock about 3 to 5 minutes
+}
+
+# Load the CordDistRast raster if you don't run the Min Chord distance per cell estimation
+if(!"ChiDistRast"%in%ls()){
+  ChiDistRast <- rast("./Data/ChiD_min.tif")
+}
+# plot the minimum chord distance
+plot(ChiDistRast,
+     main = "Min Chi-Sqr distance")
+```
+
+The Next step in producing a novelty map is defining the a suitable dissimilarity cut-off to determine if the composition difference (i.e. the minimum distance) means a current assemblages ar *novel* in contrast to those in the past.
+
+One way to do this, as suggested by [Simpson (2007)](https://doi.org/10.18637/jss.v022.i02) in the manual for `anaolgue`, is to use use Monte Carlo simulation to determine a dissimilarity threshold that is unlikely to have occurred by chance. For this, two samples are drawn, at random, from the training set (i.e., the modern sample) and the dissimilarity between these two samples is recorded. This process is repeated many times to generate a randomization distribution of dissimilarity values expected by random comparison of samples. The dissimilarity value that achieves at a significance level of 0.01 can be determined by selecting the 0.01 probability percentile of the randomization distribution (the 1st percentile). Is important to note that to define this value at a 0.01 significance level, a minimum of 100 permutations are needed, so the threshold value is one that occurred one time in a hundred.
+
+Below, I implement this procedure using the `mcarlo` function form the `analogue` package, using 1000 permutations:
+
+```{r CordDmcarlothresh}
+# use a Monte Carlo simulation of dissimilarities to define the suitability cut-off
+a<-Sys.time() # Clocks at ~4mins
+Maps0kaBP.CordDmcarlo <- mcarlo(Maps0kaBPTble, # current time Taxon data.frame 
+                           method = "chord", # dissimilarity coefficient to use
+                           nsamp = 1000, # number of permutations
+                           type = "paired", # type of permutation or simulation to perform
+                           replace = FALSE # sampling with replacement?
+                           )
+Maps0kaBP.CordDmcarlo
+a-Sys.time()
+```
+
+Based on the estimation above, the cut-off value for non-analog growth form assemblages is `r round(quantile(Maps0kaBP.CordDmcarlo,0.01),4)`. Any dissimilarity above that value would indicate a non-analogue assemblage.
+
+Now, using this value, the `CordDistRast` object, which contains the dissimilarity values could be masked to indicate which of the current areas are novel when compared to past conditions.
+
+```{r CordDistMapMcarloCutoff, fig.cap="**Fig 3**. *Areas where NOVEL growth form compositional assemblages are expected based on a MOnteCarlo-defined criteria.*"}
+# defining the suitable cut-off value
+CutOffValCordD <- quantile(Maps0kaBP.CordDmcarlo,0.01)
+# Plot the cut-off map
+plot(CordDistRast > CutOffValCordD,
+     main = "1950's Non-analogue areas compared to 21kaBP\n[Cord-Dist - Monte-Carlo based cut-off]")
+
+# Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
+hist(CordDistRast)
+# Cut-off value
+abline(v=CutOffValCordD)
+legend("topright",
+       paste0("cut-off = ",
+              round(CutOffValCordD,4)))
+```
+
+The same can now be done for the novelty estimated using the chi-squared distance. 
+
+```{r ChiSqDmcarlothresh}
+# use a Monte Carlo simulation of dissimilarities to define the suitability cut-off
+a<-Sys.time() # Clocks at ~4mins
+Maps0kaBP.ChiSqmcarlo <- mcarlo(Maps0kaBPTble, # current time Taxon data.frame 
+                           method = "chi.square", # dissimilarity coefficient to use
+                           nsamp = 1000, # number of permutations
+                           type = "paired", # type of permutation or simulation to perform
+                           replace = FALSE # sampling with replacement?
+                           )
+Maps0kaBP.ChiSqmcarlo
+a-Sys.time()
+# defining the suitable cut-off value
+CutOffValChiSqr <- quantile(Maps0kaBP.ChiSqmcarlo,0.01)
+# Plot the cut-off map
+plot(ChiDistRast > CutOffValChiSqr,
+     main = "1950's Non-analogue areas compared to 21kaBP\n[Chi-Sqrd - Monte-Carlo based cut-off]")
+
+# Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
+hist(ChiDistRast)
+# cut-off value
+abline(v=CutOffValChiSqr)
+legend("topright",
+       paste0("cut-off = ",
+              round(CutOffValChiSqr,4)))
+```
+
+An alternative form of defining the cut-off is to use the Receiver Operating Characteristic (ROC) curve, and we can divide the current conditions *a priori* into types of samples (e.g. vegetation types). Based don this, a site is an analogue for another site if they belong to the same group, and not an analogue if they come from different groups. 
+
+ROC curves are drawn using two measures of performance:
+  i) *sensitivity*: the proportion of true analogues out of all sites said to be analogues on the basis of the cut-off - drawn on the y-axis.
+  ii) *specificity*: the proportion of true non-analogues out of all non-analogues drawn on x-axis.
+  
+Here, like in species distribution modelling, the goal is to define a cut-off value that minimizes the *false positive error* (classifying two non-analogous samples as analogues) and the *false negative error* (classifying two analogous samples as non-analogues). That point is where misclassifications are low: the True Positive Rate (i.e. sensitivity) are high, and Positive Rate (1-specificity) are low.  
+
+Below, I implement this procedure using the `roc` function form the `analogue` package, using 1000 permutations:
+
+```{r CordDROCthreshold}
+# load the classified map
+dbiome <- rast("./Data/biome_mclust_nodapc_18.tif")
+# Nearest neighbour sample to the same extend as the growth form map
+dbiome <- resample(dbiome,
+                   Maps0kaBP,
+                   method = "near")
+## Generate a vector of cells with class identity
+BiomeID <- values(dbiome,
+                  dataframe = TRUE, # Make it a Data.frame
+                  na.rm = FALSE # Keep NAs
+                  )
+
+# Estimate the ROC threshold
+a<-Sys.time() # Clocks ~5Min
+Map0k.CordDist <- analogue::distance(Maps0kaBPTble, method = "chord")
+Map0k.CordD.ROC <- roc(Map0k.CordDist, # current time Taxon data.frame 
+                 groups = BiomeID[as.numeric(row.names(Maps0kaBPTble)),] # vector of group memberships
+                 )
+Map0k.CordD.ROC
+a-Sys.time()
+```
+
+Based on the estimation above, the cut-off value for non-analog growth form assemblages is `r round(Map0k.ROC$statistics["Combined","Opt. Dis."],4)`. Any dissimilarity above that value would indicate a non-analogue assemblage.
+
+Now, like with the Monte Carlo approach, we can classify the `CordDistRast` object as areas that are(are) novel when compared to past conditions.
+
+```{r CordDMapROCCutoff, fig.cap="**Fig 3**. *Areas where NOVEL growth form compositional assemblages are expected.*"}
+# defining the suitable cut-off value
+CordDCutOffVal <- Map0k.CordD.ROC$statistics["Combined","Opt. Dis."]
+# Plot the cut-off map
+plot(CordDistRast > CordDCutOffVal,
+     main = "1950's Non-analogue areas compared to 21kaBP\n[Cord Dist - ROC based cut-off]")
+
+# Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
+hist(CordDistRast)
+# cut-off value
+abline(v=CordDCutOffVal)
+legend("topright",
+       paste0("cut-off = ",
+              round(CordDCutOffVal,4)))
+```
+
+Now, the same procedure is done using a Chi-Squared distance:
+
+```{r ChiSqDROCthreshold}
+# Estimate the ROC threshold
+a<-Sys.time()  # Clocks ~5Min
+Map0k.ChiDist <- analogue::distance(Maps0kaBPTble, method = "chi.square")
+Map0k.ChiD.ROC <- roc(Map0k.ChiDist, # current time Taxon data.frame 
+                 groups = BiomeID[as.numeric(row.names(Maps0kaBPTble)),] # vector of group memberships
+)
+Map0k.ChiD.ROC
+a-Sys.time()
+
+# defining the suitable cut-off value
+ChiDCutOffVal <- Map0k.ChiD.ROC$statistics["Combined","Opt. Dis."]
+# Plot the cut-off map
+plot(ChiDistRast > ChiDCutOffVal,
+     main = "1950's Non-analogue areas compared to 21kaBP\n[Chi Dist - ROC based cut-off]")
+
+# Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
+hist(ChiDistRast)
+# cut-off value
+abline(v=ChiDCutOffVal)
+legend("topright",
+       paste0("cut-off = ",
+              round(ChiDCutOffVal,4)))
+```
+
+Note that when using the ROC defined threshold the maps done with Cord-distance and Chi-Squared distances are almost the same (there are differences but as a whole are negligible). 
+
+### Velocity of phytoclimatic change - per GF
+
+This mechanism focuses on measuring how *fast* would the "suitability" surface of for a given taxa would move in space - assuming that taxa would move from to an area of higher suitability between two times points.
+
+The approach used to estimate the Velocity of phytoclimatic change (that is the magnitude and direction of the change vector). Build on the approach developed by [Loarie et al., 2009](https://doi.org/10.1038/nature08649), were velocity for an environmental variable (e.g., temperature) is estimated as: 
+
+$$V_{l} = \frac{\text{d}c/\text{d}t}{\text{d}c/\text{d}x}$$
+
+where $\frac{\text{d}c}{\text{d}t}$ is the the ration between the projected change per unit time; and $\frac{\text{d}c}{\text{d}x}$ is the local spatial gradient in the variable of interest.
+
+Here, we apply this approach to each growth fro suitability maps rather than to a single climate variable (like in [Sierra-Diaz et al. (2013)](https://doi.org/10.1111/ddi.12131).
+
+For this we start by estimating the temporal gradient (i.e., $\frac{\text{d}c}{\text{d}t}$ ) that represents projected change per unit time as [Dobrowski et al (2012)]( https://doi.org/10.1111/gcb.12026) and [Ordonez et al (2016)](https://doi.org/10.1038/nclimate3127) using a generalised least squares regression on suitability maps for the 21kaBP to 0kaBP period for each cell with a autocorrelation structure of order one (AR1 model). Significance of trends are estimated based on the p-value of the model regression slope.
+
+Below I show how this is estimated by the *Evergreen* growth form.
+
+```{r TempGradEveGrn}
+## Make suitability raster for Evergreen trees for all time steps [21kaBP-1950]
+MapsEvergreenlist <- lapply(1:45,
+                       function(i){
+                         rasterize(x = as.matrix(xy), # points as a matrix
+                                   y = cr.ea, #  template raster
+                                   values = pml[[i]][,"TE"] # Values to aggregate
+                                   )
+                         })
+# make a multi-band SpatRaster
+MapsEvergreen <- do.call("c",MapsEvergreenlist)
+rm(MapsEvergreenlist);gc()
+## Generate a data.frame of cells with data for the time period evaluated
+MapsEvergreenTbl <- values(MapsEvergreen,
+                           dataframe = TRUE, # Make it a Data.frame
+                           na.rm = TRUE # Keep NAs
+                           )
+names(MapsEvergreenTbl) <- c(paste0(seq(-21,0,by=0.5),"kaBP"),"1950",2070)
+
+a<-Sys.time()
+# Run in parallel
+sfInit(cpus=10, # set yo 10 cores
+       parallel=TRUE)
+## Export packages
+sfLibrary(nlme)
+## Export data
+sfExport("MapsEvergreenTbl")
+# Evergreen time heterogeneity
+TempHetEvergreenList <- sfLapply(rownames(MapsEvergreenTbl),
+                          function(i){
+                            x <- as.numeric(MapsEvergreenTbl[i,])
+                            if(sum(x)!=0 & sum(x>0)>3){
+                              tmbDtaFrm <- data.frame(prop = x[1:44],
+                                                      Time = c(1:44)
+                                                      )
+                              TimMod <- gls(prop~Time, data = tmbDtaFrm,
+                                            correlation = corARMA(p=1),
+                                            method ="ML")
+                              Out <- coef(summary(TimMod))["Time",c("Value","Std.Error","p-value")]
+                            }
+                            else{
+                              Out <- c(0,0,1)
+                              names(Out) <- c("Value","Std.Error","p-value")
+                            }
+                            Out <- data.frame(Cell.ID=i, t(Out))
+                            return(Out)
+                          })
+sfStop()
+Sys.time()-a
+TempHetEvergreen <- do.call("rbind",
+                            TempHetEvergreenList)
+rm(TempHetEvergreenList);gc()
+write.csv(TempHetEvergreen,"./Data/EvergreenTempChng.csv")
+
+
+# Turn the Temporal trend per cell into a raster
+TempHetEvGrnRast <- rast(cr.ea) # create the empty raster
+values(TempHetEvGrnRast) <- NA # fill with empty data
+names(TempHetEvGrnRast) <- "TempTrend" # change layer name
+# Save the values of the slope (the units will be % change per 100yrs so the values are divided by 5)
+values(TempHetEvGrnRast)[as.numeric(TempHetEvergreen$Cell.ID)] <- TempHetEvergreen$Value/5
+
+# Plot the values... Remember that the units is prop of species gained per 500/yrs
+plot(TempHetEvGrnRast,
+     plg = list(title = '% per 100yrs'),
+     xpd=NA)
+
+```
+
+The second step is to estimating the spatial heterogeneity (change per unit space; i.e.,  $\frac{\text{d}c}{\text{d}x}$) as in [Burrows et al.2011](https://doi.org/10.1126/science.1210288), [Dobrowski et al (2012)]( https://doi.org/10.1111/gcb.12026) and [Ordonez et al (2016)](https://doi.org/10.1038/nclimate3127) for each map cell as "the slope of proportions" using the maximum average technique [Burrough & McDonnell 1998]. The method focuses on estimating the average change in the West-East (W-E) direction (negative values indicate a westward direction), and the North-South (N-S) direction (negative values indicate a equatorial direction) and divided by the avg distance between the cells (47km in the West-East direction and 66km in the North-South direction). The overall spatial gradients is then calculated as the vector sum of the N-S and W-E gradients, with the associated vector angle giving the direction of the gradient.
+
+
+
+```{r SpacGradEveGrn}
+
+# Get the proportion raster for the initial period
+MapsEvergreen21kaBP <- MapsEvergreen[[1]]
+
+# West-east gradients
+EstWestChngEvrGrn <- focal(MapsEvergreen21kaBP,# Input Raster
+                           w = 3, # Neighborhood matrix
+                           fun = function(x){mean(c(x[2]-x[1],x[3]-x[2],
+                                                    x[5]-x[4],x[6]-x[5],
+                                                    x[8]-x[7],x[9]-x[8]),
+                                                  na.rm=TRUE)/47
+                                             })
+# Plot the West-east gradients
+plot(EstWestChngEvrGrn)
+
+# North-South gradients - Norther hemisphere (negative change means equatorial movement)
+MapsEvergreen21kaBPNorth <- crop(MapsEvergreen21kaBP,
+                                 ext(as.numeric(c(ext(MapsEvergreen21kaBP)[c(1,2)],
+                                                  0,
+                                                  ext(MapsEvergreen21kaBP)[4]))))
+                                 
+NrthSthChngEvrGrn1 <- focal(MapsEvergreen21kaBPNorth,# Input Raster
+                           w = 3, # Neighborhood matrix
+                           fun = function(x){mean(c(x[1]-x[4],x[4]-x[7],
+                                                    x[2]-x[5],x[5]-x[8],
+                                                    x[3]-x[6],x[6]-x[9]),
+                                                  na.rm=TRUE)/65.9
+                                            })
+# Plot the North-South gradients - North hemisphere
+plot(NrthSthChngEvrGrn1)
+
+# North-South gradients - South hemisphere  (negative change means equatorial movement)
+MapsEvergreen21kaBPSouth <- crop(MapsEvergreen21kaBP,
+                                 ext(as.numeric(c(ext(MapsEvergreen21kaBP)[c(1,2,3)],0))))
+
+NrthSthChngEvrGrn2 <- focal(MapsEvergreen21kaBPSouth,# Input Raster
+                           w = 3, # Neighborhood matrix
+                           fun = function(x){mean(c(x[4]-x[1],x[7]-x[4],
+                                                    x[5]-x[2],x[8]-x[5],
+                                                    x[6]-x[3],x[9]-x[6]),
+                                                  na.rm=TRUE)/65.9
+                                            })
+# Plot the North-South gradients - South hemisphere
+plot(NrthSthChngEvrGrn2)
+
+# Mosaic the North-South gradients 
+NrthSthChngEvrGrn <- mosaic(NrthSthChngEvrGrn1,NrthSthChngEvrGrn2)
+
+# Plot the North-South gradients (negative change means equatorial movement)
+plot(NrthSthChngEvrGrn)
+
+
+# Vector sum of the N-S and W-E gradients
+SpacHetEvGrnRast <- sqrt((NrthSthChngEvrGrn^2)+(EstWestChngEvrGrn^2))
+# Plot the Vector sum
+plot(SpacHetEvGrnRast)
+
+# Estimating the bearing of the velocity vector based on initial conditions
+BearingEvGrnRast <- atan2(x=EstWestChngEvrGrn, y= NrthSthChngEvrGrn)*(180/pi)
+# make the bearing a value between 0 and 360
+BearingEvGrnRast <- app(BearingEvGrnRast,
+                        fun=function(x){ifelse(x<0,
+                                               360+x,
+                                               x)})
+# plot the bearing
+plot(BearingEvGrnRast,
+     plg = list(title = '% per km'),
+     xpd=NA)
+```
+
+With these two variables (that is `SpacHetEvGrnRast` quantifying the spatial heterogeneity, and `TempHetEvGrnRast` quantifying the temporal heterogeneity) we can estimate the velocity as the ratio between these two
+
+```{r Velocity}
+# Estimate velocity
+VelocityEvGrn <-  abs(TempHetEvGrnRast)/SpacHetEvGrnRast
+hist(log10(VelocityEvGrn))
+# Make the velocity for very slow areas (~1e-4km/centennial) zero
+VelocityEvGrn[which(SpacHetEvGrnRast[]<0.0001)] <- 0
+
+#plot the Velocity
+plot(VelocityEvGrn,
+     plg = list(title = 'km % per 100yrs'),
+     xpd=NA)
+```
+
+
+
+
