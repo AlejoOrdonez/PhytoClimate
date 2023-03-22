@@ -1,7 +1,7 @@
 ---
-title: "Novelty metrics"
+title: "Velocity metrics"
 description: 
-  Estimation of climate velocity (magnitude and direction) for the Phytoclimate of multiple growth forms
+  Estimation of climate velocity (magnitude and direction) for the Phytoclimate of multiple growth forms between the Last Glacial maximum (LGM) and contemporary conditions (1950).
 author: "Alejandro Ordonez"
 date: '`r Sys.Date()`'
 bibliography: PhytoClim.bib
@@ -19,42 +19,37 @@ project:
 #| label: setup
 #| include: false
 library(terra)
-library(analogue)
-library(nlme)
-library(rasterVis)
-library(sp)
-require(latticeExtra)
-require(maptools)
-
-# Load the functions to Estimate velocity
-source("VelocityFnc.R") 
-
-## Load the Data
-### Load growth form data [21kaBP to present on 500Yrs intervals] last one is 2070 second to last is 1950
-pml <- readRDS("./Data/gf_suitab_matrices.rds")
-### Coordinates of the grid cells
-xy <- readRDS("./Data/cell_coordinates.rds")
-### Raster template
-cr.ea <- rast("./Data/raster_template.tif")
-
-## Ice sheets 21ka BP
-Ice <- rast("./Data/IceCover21kaBP.tif") 
+library(maptools)
+library(tidyverse)
+library(tidyterra)
+library(ggnewscale)
 ## Countries shapefile
 data(wrld_simpl)
 wrld_simpl <- spTransform(x = wrld_simpl,
                           CRSobj = CRS("+proj=eck4"))
+wrld_simpl2 <- vect(wrld_simpl)
+
+## Ice sheets 21ka BP
+Ice <- rast("./Data/ice6g_c [PMIP4]/IceCover21kaBP.tif") 
 
 ### Matrix of names
 NamesDtFrm <- data.frame(Acronym = c("TE", "TDdry", "TDcold", "TN", "ShE", "ShDdry", "ShDcold","H","Geo", "Thero", "GC3", "GC4", "Suc", "Clim"),
                          Acro2 = c("TE", "TD_dry", "TD_cold", "TN", "ShrE", "ShrD_dry", "ShrD_cold", "H","HGeo", "HThero", "G_C3", "G_C4", "Suc", "C"),
                          Name = c("Evergreen trees", "Drought-deciduous trees", "Cold-deciduous trees", "Needleleaf trees", "Evergreen shrubs", "Drought-deciduous shrubs", "Cold-deciduous shrubs","Herbs", "Geophytes", "Therophytes", "C3 grasses", "C4 grasses", "Succulents", "Climbers"))
 
-
 ```
 
 ## The setup.
 
-Here, I will be exploring how the novelty metrics in [@ordonezMappingClimaticMechanisms2016] can be used in [@conradiOperationalDefinitionBiome2020] work on Phyto-climates that builds on his work on operationalizing the definition of the biome for global change research.
+Here, I will be exploring how the velocity based novelty metrics in [@ordonez_mapping_2016] can be used in [@conradi_operational_2020] work on Phyto-climates that builds on his work on operationalizing the definition of the biome for global change research.
+
+The novelty metrics in [@ordonez_mapping_2016] focus on measuring three different mechanisms by which ecological novelty might emerge. These mechanisms are based on the idea that as environmental changes happen the composition of taxa on a site will change change.
+
+**Our goals are:**
+
+-   Developing new metrics of ecosystem change based on velocity *vectors of phytoclimatic* change.
+
+-   Provide a novel and nuanced perspective to identify the ecosystems most at risk from climate change.
 
 ## Input information.
 
@@ -66,1252 +61,287 @@ Here using will use the maps of growth form (GF) suitability for 14 GFs:
 knitr::kable(NamesDtFrm[,-2])
 ```
 
-## Compositional Novelty as a metric of Ecological Novelty.
+## Data Inputs - Phytoclimates
 
-The novelty metrics in [@ordonezMappingClimaticMechanisms2016] focus on measuring three different mechanisms by which ecological novelty might emerge:
-
-This mechanism is based on the idea that as environmental changes happen the composition of taxa on a site will change change, and therefore you would like to assess of this change means that this assemblage is new when compared to past assemblages.
-
-To measure this, I focus on the composition rearrangement of a location due to environmental changes. In those situations where current communities that are compositionally (significantly) different to those found in the past, it can be considered that these assemblages are *"novel"*. Conceptual this idea links to [@williamsProjectedDistributionsNovel2007] and [@williamsNovelClimatesNoanalog2007] discussions on Novel climates and no-analog communities.
-
-Core to measuring novelty is the direction of the contrasts. So Measuring if current conditions are novel means contrasting **Each current condition, to ALL past cells**. Therefore, to start I load the suitability per-growth form under the current environmental conditions (here defined as 1950 values, @fig-Maps0kaBP):
+All analyses use **Phytoclimates** as inputs. These variables can be defined as summaries of the climatic suitability for all plant species with a given growth form (e.g. evergreen tree, grass). Its estimation is based on a physiologically informed suitability model (i.e., an Eco-physiological species distribution Model - *TTR*). The models are based on defining the functional form of physiological constraints to plant growth (as modelled in Dynamic Global Vegetation Models \[DGVMs\]), parameterizing these using occurrence data, and then using the statistical methods of Species Distribution Modelling (SDMs) to define suitability surfaces for each evaluated species..
 
 ```{r}
 #| label: fig-Maps0kaBP
+#| fig-align: center
 #| fig-cap: "*Present (1950) suitability per-growth form.*"
+#| echo: false
 
-## Make suitability raster for all growth forms for the present time step [1950] - 45th slot in the data list 
-Maps0kaBPlist <- lapply(dimnames(pml[[45]])[[2]],
-                       function(i){
-                         rasterize(x = as.matrix(xy), # points as a matrix
-                                   y = cr.ea, #  template raster
-                                   values = pml[[45]][, i] # Values to aggregate
-                                   )
-                         })
+## Load suitability raster for all growth forms for the present time step [1950] - 45th slot in the data list 
+Maps0kaBPList <- lapply(dir("./Data/LGM/LatePleistocene/",
+                            full.names = T),
+                        function(x){rast(x, lyrs= 44)})
 # Turn the list into a multi-layer SpatRaster
-Maps0kaBP <- do.call("c",Maps0kaBPlist)
+Maps0kaBP <- do.call("c",Maps0kaBPList)
 # Add the GF names to each layer
-names(Maps0kaBP) <- NamesDtFrm$Name[match(dimnames(pml[[1]])[[2]],NamesDtFrm$Acro2)]
+names(Maps0kaBP) <- sort(NamesDtFrm$Acro2)
 
 # Plot the Suitability Raster
-levelplot(raster::stack(Maps0kaBP), # level plot only works with raster files
-          at=seq(0,0.6,length.out=100), # Set the zlim
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Suitability per growth form [1950]",side=1,line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(col=rev(hcl.colors(100, palette = "RdYlBu"))) # add a legend
-          ) + 
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      )
-
-## Generate a data.frame of cells with data for present conditions
-Maps0kaBPTble <- values(Maps0kaBP,
-                        dataframe = TRUE,
-                        na.rm = TRUE)
+ggplot(wrld_simpl2) + # add the vector of the world
+  geom_spatraster(data = Maps0kaBP) + # Map the Displacement
+# Setup. plot of continuous raster
+  scale_fill_whitebox_c(palette = "muted", #colour scheme 
+                        na.value = NA,#Do not map NA
+                        #labels = seq(0,1,by=0.25), # Legend Labels
+                        name = "Suitability", # Legend Title
+                        limits=c(0, 1) # Define the limits of the color ramp
+                        ) +
+  facet_wrap(~lyr) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "Phytoclimate Suitability [1950]")
 ```
 
-After this, I load the suitability per-growth form under past environmental conditions (@fig-Maps21kaBP), here defined as the Last Glacial Maximum (21kaBP) values:
+The values in the figures above can be defined as the proportion of the species within a growth form for which the environmental conditions at 50x50km a grid-cell are considered suitable at a given period (here 1950; @fig-Maps0kaBP).
 
-```{r}
-#| label: fig-Maps21kaBP
-#| fig-cap: "*Past (21kaBP) Suitability per-growth form*"
+## What is the velocity of phytoclimatic change?.
 
-## Make suitability raster for all growth forms for the first time step [21kaBP?]
-Maps21kaBPlist <- lapply(dimnames(pml[[1]])[[2]],
-                       function(i){
-                         rasterize(x = as.matrix(xy), # points as a matrix
-                                   y = cr.ea, #  template raster
-                                   values = pml[[1]][, i] # Values to aggregate
-                                   )
-                         })
-# Turn the list into a multi-layer SpatRaster
-Maps21kaBP <- do.call("c",Maps21kaBPlist)
-# Add the GF names to each layer
-names(Maps21kaBP) <- NamesDtFrm$Name[match(dimnames(pml[[1]])[[2]],NamesDtFrm$Acro2)]
-# Plot the map
-# Plot the Suitability Raster
-levelplot(raster::stack(Maps21kaBP), # level plot only works with raster files
-          at = seq(0,0.6,length.out=100), # Add limits
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Suitability per growth form [21kaBP]",side=1,line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(col=rev(hcl.colors(100, palette = "RdYlBu")))  # add a legend
-          ) + 
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-
-## Generate a data.frame of cells with data for past conditions
-Maps21kaBPTble<- values(Maps21kaBP,
-                        dataframe = TRUE,
-                        na.rm = TRUE)
-
-```
-
-The values in the two figures above are defined as the proportion of the species within a growth form for which the environmental conditions at 50x50km a grid-cell are considered suitable at a given period (here 1950 and 21kaBP).
-
-This Suitability is based on a Eco-physiological species distribution Model (*INSERT NAME HERE*).
-
-Now with the adequate temporal data (i.e., **Current & Past conditions**), I estimate novelty. As stated above, the approach used to estimate novelty (EACH current conditions vs. ALL past cells approach used) means that for each current cell, I will have a large number of possible contrasts based on an adequate distance metric (e.g., (Squared) chord-distance or $\chi^2$-distance for composition data; Euclidean distance for uncorrelated environmental data, or Mahalanobis distance for correlated environmental data).
-
-Given that the data I have for growth-form suitability is the proportion of species within a group for which the evaluated cell has suitable conditions (similar to proportion of species) I will use the Min Chord distance as suggested by [@simpsonAnalogueMethodsPalaeoecology2007], [@overpeckQuantitativeInterpretationFossil1985], and [@gavinStatisticalApproachEvaluating2003].
-
-The chord distance between samples $j$ and $k$, $d_{jk}$, is:
-
-$$d_{jk} = \sqrt{\sum_{k=1}^{m}( x_{jk}^{0.5} - x_{ik}^{0.5})^2}$$ Where $x_{ij}$ is the proportion of growth from $i$ in sample $k$. Note that other dissimilarity metrics could be used, and they are implemented in the [`anaolgue`](https://cran.r-project.org/web/packages/analogue/index.html) package.
-
-With all the pairwise distances estimated, a technique used to estimate site novelty (as in [@williamsProjectedDistributionsNovel2007], [@williamsNovelClimatesNoanalog2007], [@ordonezCombinedSpeedsClimate2014], and [@ordonezMappingClimaticMechanisms2016]) is to retain the minimum dissimilarity value of the contrast between the target assemblage (here *1950's sites*) and all sites in the reference period (here 21kaBP). This technique is similar to the analogue matching approach in paleoecology ([@overpeckQuantitativeInterpretationFossil1985] and [@flowerMatchingDiatomAssemblages1997]).
-
-Now using the Min Chord distance (as implemented in `anaolgue`), I estimate (using a parallel computing approach) the novelty of each cell in `Maps0kaBP` [the present growth from suitability measured based on 1950 climates, @fig-CordDistEst] when compared to the Last Glacial Maximum growth from suitability as presented in `Maps21kaBP`:
-
-```{r}
-#| label: fig-CordDistEst
-#| fig-cap: "*Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"
-
-### Calculate the Min Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
-if(!"CordD_min.tif"%in%dir("./Data/Novelty/")){
-  a<-Sys.time()
-# Create a virtual cluster
-  sfInit(cpus=10,parallel=TRUE)
-## Export packages
-  sfLibrary(analogue)
-## Export Data
-  sfExport("Maps0kaBPTble")
-  sfExport("Maps21kaBPTble")
-
-# Calculate the Squared Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
-  CordDistSumList <- sfLapply(1:dim(Maps0kaBPTble)[1],#(x<-1)
-                              function(x, DistMet = "chord"){
-                                DistCalc <- analogue::distance(x = Maps0kaBPTble[x,],
-                                                               y = Maps21kaBPTble,
-                                                               method = DistMet,
-                                                               double.zero = TRUE)
-                                
-                                min(DistCalc,na.rm=T)
-                              })
-  sfStop();gc()
-  CordDistSum <- data.frame(Dist = do.call("c",CordDistSumList),
-                            CellID = as.numeric(rownames(Maps0kaBPTble)))
-  write.csv(CordDistSum,"./Data/Novelty/CordDist_min.csv")
-# Turn the Min Chord distance per cell into a raster
-#CordDistSum <- read.csv("./Data/CordDist_min.csv") # Load data
-  CordDistRast <- rast(Maps0kaBP[[1]]) # create the empty raster
-  values(CordDistRast) <- NA #| fill with empty data
-  names(CordDistRast) <- "minCordDist" # change layer name
-  values(CordDistRast)[CordDistSum$CellID] <- CordDistSum$Dist # add the ChordD.min data
-# Save the Raster file
-  writeRaster(CordDistRast,
-              "./Data/Novelty/CordD_min.tif",
-              overwrite=TRUE)
-  Sys.time()-a # Should clock about 3 to 5 minutes
-}
-
-# Load the CordDistRast raster if you don't run the Min Chord distance per cell estimation
-if(!"CordDistRast"%in%ls()){
-  CordDistRast <- rast("./Data/Novelty/CordD_min.tif")
-}
-# plot the minimum chord distance
-plot(CordDistRast,
-     main = "Min chord distance",
-     col = rev(hcl.colors(100,"RdYlBu")))
-plot(wrld_simpl, add=T)
-```
-
-I also do this estimation using a Chi-Squared distance (@fig-ChiDistEst):
-
-```{r}
-#| label: fig-ChiDistEst
-#| fig-cap: "*Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP.*"
-
-### Calculate the Min Chi-Sqred distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
-if(!"CordD_min.tif"%in%dir("./Data/Novelty/")){
-  a<-Sys.time()
-# Create a virtual cluster
-  sfInit(cpus=10,parallel=TRUE)
-# Export packages
-  sfLibrary(analogue)
-# Export Data
-  sfExport("Maps0kaBPTble")
-  sfExport("Maps21kaBPTble")
-  
-# Calculate the Squared Chord distance for each current cell in Maps0kaBP to all past cells in Maps21kaBP
-  ChiDistSumList <- sfLapply(1:dim(Maps0kaBPTble)[1],#(x<-1)
-                              function(x, DistMet = "chi.square"){
-                                DistCalc <- analogue::distance(x = Maps0kaBPTble[x,],
-                                                               y = Maps21kaBPTble,
-                                                               method = DistMet,
-                                                               double.zero = TRUE)
-                                
-                                min(DistCalc,na.rm=T)
-                              })
-  sfStop()
-  ChiDistSum <- data.frame(Dist = do.call("c",ChiDistSumList),
-                            CellID = as.numeric(rownames(Maps0kaBPTble)))
-  write.csv(ChiDistSum,"./Data/Novelty/ChiDist_min.csv")
-  
-# Turn the Min Chord distance per cell into a raster
-# ChiDistSum <- read.csv("./Data/ChiDist_min.csv") # Load data
-  ChiDistRast <- rast(Maps0kaBP[[1]]) # create the empty raster
-  values(ChiDistRast) <- NA #| fill with empty data
-  names(ChiDistRast) <- "minChiDist" # change layer name
-  values(ChiDistRast)[ChiDistSum$CellID] <- ChiDistSum$Dist # add the ChordD.min data
-# Save the Raster file
-  writeRaster(ChiDistRast,
-              "./Data/Novelty/ChiD_min.tif",
-              overwrite=TRUE)
-  Sys.time()-a # Should clock about 3 to 5 minutes
-}
-
-# Load the CordDistRast raster if you don't run the Min Chord distance per cell estimation
-if(!"ChiDistRast"%in%ls()){
-  ChiDistRast <- rast("./Data/Novelty/ChiD_min.tif")
-}
-# plot the minimum chord distance
-plot(ChiDistRast,
-     main = "Min Chi-Sqr distance",
-     col = rev(hcl.colors(100,"RdYlBu")))
-plot(wrld_simpl, add=T)
-```
-
-The Next step in producing a novelty map is defining the a suitable dissimilarity cut-off to determine if the composition difference (i.e. the minimum distance) means a current assemblages ar *novel* in contrast to those in the past.
-
-One way to do this, as suggested by [@simpsonAnalogueMethodsPalaeoecology2007] in the manual for `anaolgue`, is to use Monte Carlo simulation to determine a dissimilarity threshold that is unlikely to have occurred by chance. For this, two samples are drawn, at random, from the training set (i.e., the modern sample) and the dissimilarity between these two samples is recorded. This process is repeated many times to generate a randomization distribution of dissimilarity values expected by random comparison of samples. The dissimilarity value that achieves at a significance level of 0.01 can be determined by selecting the 0.01 probability percentile of the randomization distribution (the 1st percentile). Is important to note that to define this value at a 0.01 significance level, a minimum of 100 permutations are needed, so the threshold value is one that occurred one time in a hundred.
-
-Below, I implement this procedure using the `mcarlo` function form the `analogue` package, using 1000 permutations.
-
-```{r}
-#| label: CordDmcarlothresh
-if(!"CordDmcarlo.rds"%in%dir("./Data/Novelty/")){
-# use a Monte Carlo simulation of dissimilarities to define the suitability cut-off
-  a<-Sys.time() # Clocks at ~4mins
-  Maps0kaBP.CordDmcarlo <- mcarlo(Maps0kaBPTble, # current time Taxon data.frame 
-                             method = "chord", # dissimilarity coefficient to use
-                             nsamp = 1000, # number of permutations
-                             type = "paired", # type of permutation or simulation to perform
-                             replace = FALSE # sampling with replacement?
-                             )
-  saveRDS(Maps0kaBP.CordDmcarlo,"./Data/Novelty/CordDmcarlo.rds")
-  a-Sys.time()
-}
-if(!"Maps0kaBP.CordDmcarlo"%in%ls()){
-  Maps0kaBP.CordDmcarlo <- readRDS("./Data/Novelty/CordDmcarlo.rds")
-}
-Maps0kaBP.CordDmcarlo
-```
-
-Based on the estimation above, the cut-off value for non-analog growth form assemblages is `r round(quantile(Maps0kaBP.CordDmcarlo,0.01),4)`. Any dissimilarity above that value would indicate a non-analogue assemblage.
-
-Now, using this value, the `CordDistRast` object, which contains the dissimilarity values could be masked to indicate which of the current areas are novel when compared to past conditions (@fig-CordDistMapMcarloCutoff1).
-
-
-```{r}
-#| label: fig-CordDistMapMcarloCutoff1
-#| fig-cap: "*Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"
-# defining the suitable cut-off value
-CutOffValCordD <- quantile(Maps0kaBP.CordDmcarlo,0.01)
-# Plot the cut-off map
-plot(CordDistRast > CutOffValCordD,
-     main = "1950's Non-analogue areas compared to 21kaBP\n[Cord-Dist - Monte-Carlo based cut-off]")
-plot(wrld_simpl, add=T)
-```
-
-If you would like to see the cord-distance/ROC-defined cutoff criteria in the context of all minimum cord-distances you can plot the histogram of distances (@fig-CordDistMapMcarloCutoff2):
-
-```{r}
-#| label: fig-CordDistMapMcarloCutoff2
-#| fig-cap: "*Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"
-
-# Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
-hist(CordDistRast)
-# Cut-off value
-abline(v=CutOffValCordD)
-legend("topright",
-       paste0("cut-off = ",
-              round(CutOffValCordD,4)))
-```
-
-The same can now be done for the novelty estimated using the chi-squared distance. Below is the visualization for a ChiSrq-distance/MonteCarlo-defined cut-off criteria (@fig-ChiSqDmcarlothresh1):
-
-```{r}
-#| label: fig-ChiSqDmcarlothresh1
-#| fig-cap: "*Areas where NOVEL growth form compositional assemblages are expected based on a ChiSrq-distance/MonteCarlo-defined criteria.*"
-
-if(!"CordDmcarlo.rds"%in%dir("./Data/Novelty/")){
-# use a Monte Carlo simulation of dissimilarities to define the suitability cut-off
-  a<-Sys.time() # Clocks at ~4mins
-  Maps0kaBP.ChiSqmcarlo <- mcarlo(Maps0kaBPTble, # current time Taxon data.frame 
-                             method = "chi.square", # dissimilarity coefficient to use
-                             nsamp = 1000, # number of permutations
-                             type = "paired", # type of permutation or simulation to perform
-                             replace = FALSE # sampling with replacement?
-                             )
-  a-Sys.time()
-  saveRDS(Maps0kaBP.ChiSqmcarlo,"./Data/Novelty/ChiSqmcarlo.rds")
-}
-if(!"Maps0kaBP.ChiSqmcarlo"%in%ls()){
-  Maps0kaBP.ChiSqmcarlo <- readRDS("./Data/Novelty/ChiSqmcarlo.rds")
-}
-
-# defining the suitable cut-off value
-CutOffValChiSqr <- quantile(Maps0kaBP.ChiSqmcarlo,0.01)
-# Plot the cut-off map
-plot(ChiDistRast > CutOffValChiSqr,
-     main = "1950's Non-analogue areas compared to 21kaBP\n[Chi-Sqrd - Monte-Carlo based cut-off]")
-plot(wrld_simpl, add=T)
-```
-
-Again, if you would like to see the ChiSrq-distance/MonteCarlo-defined cutoff criteria in the context of all minimum ChiSrq-distances you can plot the histogram of distances (@fig-ChiSqDmcarlothresh2):
-
-```{r}
-#| label: fig-ChiSqDmcarlothresh2
-#| fig-cap: "*Histogram showing the distibution of distances and the ChiSrq-distance/MonteCarlo-defined cutoff.*"
-
-## Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
-hist(ChiDistRast)
-# cut-off value
-abline(v=CutOffValChiSqr)
-legend("topright",
-       paste0("cut-off = ",
-              round(CutOffValChiSqr,4)))
-```
-
-An alternative form of defining the cut-off is to use the Receiver Operating Characteristic (ROC) curve, and I can divide the current conditions *a priori* into types of samples (e.g. vegetation types). Based don this, a site is an analogue for another site if they belong to the same group, and not an analogue if they come from different groups.
-
-ROC curves are drawn using two measures of performance: i) *sensitivity*: the proportion of true analogues out of all sites said to be analogues on the basis of the cut-off - drawn on the y-axis. ii) *specificity*: the proportion of true non-analogues out of all non-analogues drawn on x-axis.
-
-Here, like in species distribution modelling, the goal is to define a cut-off value that minimizes the *false positive error* (classifying two non-analogous samples as analogues) and the *false negative error* (classifying two analogous samples as non-analogues). That point is where mis-classifications are low: the True Positive Rate (i.e. sensitivity) are high, and Positive Rate (1-specificity) are low.
-
-Below, I implement this procedure using the `roc` function form the `analogue` package, using 1000 permutations:
-
-```{r}
-#| label: CordDROCthreshold
-if(!"CordDROC.rds"%in%dir("./Data/Novelty/")){
-# load the classified map
-  dbiome <- rast("./Data/biome_mclust_nodapc_18.tif")
-# Nearest neighbor sample to the same extend as the growth form map
-  dbiome <- resample(dbiome,
-                     Maps0kaBP,
-                     method = "near")
-## Generate a vector of cells with class identity
-  BiomeID <- values(dbiome,
-                    dataframe = TRUE, # Make it a Data.frame
-                    na.rm = FALSE # Keep NAs
-                    )
-
-# Estimate the ROC threshold
-  a<-Sys.time() # Clocks ~5Min
-  Map0k.CordDist <- analogue::distance(Maps0kaBPTble, method = "chord")
-  Map0k.CordD.ROC <- roc(Map0k.CordDist, # current time Taxon data.frame 
-                         groups = BiomeID[as.numeric(row.names(Maps0kaBPTble)),] # vector of group memberships
-                         )
-  a-Sys.time()
-  saveRDS(Map0k.CordD.ROC,"./Data/Novelty/CordDROC.rds")
-}
-if(!"Map0k.CordD.ROC"%in%ls()){
-  Map0k.CordD.ROC <- readRDS("./Data/Novelty/CordDROC.rds")
-}
-```
-
-Based on the estimation above, the cut-off value for non-analog growth form assemblages is `r round(Map0k.CordD.ROC$statistics["Combined","Opt. Dis."],4)`. Any dissimilarity above that value would indicate a non-analogue assemblage.
-
-Now, like with the Monte Carlo approach, I can classify the `CordDistRast` object as areas that are(are) novel when compared to past conditions (@fig-CordDMapROCCutoff1).
-
-```{r}
-#| label: fig-CordDMapROCCutoff1
-#| fig-cap: "*Areas where NOVEL growth form compositional assemblages are expected based on a cord-distance/ROC-defined criteria.*"
-
-## defining the suitable cut-off value
-CordDCutOffVal <- Map0k.CordD.ROC$statistics["Combined","Opt. Dis."]
-# Plot the cut-off map
-plot(CordDistRast > CordDCutOffVal,
-     main = "1950's Non-analogue areas compared to 21kaBP\n[Cord Dist - ROC based cut-off]",
-     xpd = NA)
-plot(wrld_simpl, add=T)
-```
-
-I can also show the cutoff value in the context of all distances (@fig-CordDMapROCCutoff2).
-
-```{r}
-#| label: fig-CordDMapROCCutoff2
-#| fig-cap: "*Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"
-# Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
-hist(CordDistRast)
-# cut-off value
-abline(v=CordDCutOffVal)
-legend("topright",
-       paste0("cut-off = ",
-              round(CordDCutOffVal,4)))
-```
-
-Now, the same procedure is done using a Chi-Squared distance (@fig-ChiSqDROCthreshold1).
-
-```{r}
-#| label: fig-ChiSqDROCthreshold1
-#| fig-cap: "*Areas where NOVEL growth form compositional assemblages are expected based on a ChiSqr-distance/ROC-defined criteria.*"
-
-if(!"ChiDROC.rds"%in%dir("./Data/Novelty/")){
-# Estimate the ROC threshold
-  a<-Sys.time()  # Clocks ~5Min
-  Map0k.ChiDist <- analogue::distance(Maps0kaBPTble, method = "chi.square")
-  Map0k.ChiD.ROC <- roc(Map0k.ChiDist, # current time Taxon data.frame 
-                        groups = BiomeID[as.numeric(row.names(Maps0kaBPTble)),] # vector of group memberships
-                        )
-  a-Sys.time()
-  saveRDS(Map0k.ChiD.ROC,"./Data/Novelty/ChiDROC.rds")
-}
-if(!"Map0k.ChiD.ROC"%in%ls()){
-  Map0k.ChiD.ROC <- readRDS("./Data/Novelty/ChiDROC.rds")
-}
-Map0k.ChiD.ROC
-# defining the suitable cut-off value
-ChiDCutOffVal <- Map0k.ChiD.ROC$statistics["Combined","Opt. Dis."]
-# Plot the cut-off map
-plot(ChiDistRast > ChiDCutOffVal,
-     main = "1950's Non-analogue areas compared to 21kaBP\n[Chi Dist - ROC based cut-off]",
-     xpd=NA)
-plot(wrld_simpl, add=T)
-```
-
-Now, the same procedure is done using a cord-distance (@fig-CordDROCthreshold1).
-
-```{r}
-#| label: fig-CordDROCthreshold1
-#| fig-cap: "*Histogram showing the distibution of distances and the cord-distance/ROC-defined cutoff.*"
-
-# Histogram of dissimilarities representing the distribution of dissimilarity distances and the cut-off values
-hist(ChiDistRast,
-     main = "Compositional distance\n0kaBP to 21kaBP [Evergreen trees]",
-     cex.main = 1.5)
-# cut-off value
-abline(v=ChiDCutOffVal)
-legend("topright",
-       paste0("cut-off = ",
-              round(ChiDCutOffVal,4)))
-```
-
-Note that when using the ROC defined threshold the maps done with Cord-distance and Chi-Squared distances are almost the same (there are differences but as a whole are negligible).
-
-## Velocity of phytoclimatic change as a metric of Ecological Novelty.
-
-This mechanism focuses on measuring how *fast* would the "suitability" surface of for a given taxa would move in space - assuming that taxa would move from an area of low to an area of higher suitability between two times points. Estimations flow the implementation in [@ordonezCombinedSpeedsClimate2014] and [@ordonezMappingClimaticMechanisms2016].
-
-The approach used to estimate the Velocity of phytoclimatic change (that is the magnitude and direction of the change vector). Build on the approach developed by [@loarieVelocityClimateChange2009], were velocity for an environmental variable (e.g., temperature) is estimated as:
+The *Velocity of environmental change idea* is built on the approach developed by [@loarie_velocity_2009], where velocity for an environmental variable (e.g., temperature) is estimated as:
 
 $$V_{l} = \frac{\text{d}c/\text{d}t}{\text{d}c/\text{d}x}$$
 
-where $\frac{\text{d}c}{\text{d}t}$ is the the ration between the projected change per unit time; and $\frac{\text{d}c}{\text{d}x}$ is the local spatial gradient in the variable of interest.
+Where $\frac{\text{d}c}{\text{d}t}$ is the ratio between the projected change per unit time, and $\frac{\text{d}c}{\text{d}x}$ is the local spatial gradient in the variable of interest.
 
-Here, I apply this approach to each growth form suitability maps rather than to a single climate variable (like in [@serra-diazBioclimaticVelocityPace2014]).
+In this context, velocity vectors for Phytoclimates measure the **rapidity** and **direction** of a change in the suitability of environmental conditions for a growth form. You can think of this as a measurement of how *fast* would the "suitability" surface of a given growth form move in space (like in [@serra-diaz_bioclimatic_2014]).
 
-### Estimating temporal gradients of change
+This metric answer the question, *"How fast to move to keep the same 'suitability'"*, assuming that the movement is from an area of low to a place of higher suitability between two times points. A 10km/year value means that to compensate for the change in 1yr, you would need to move to a location 10km away. Here, I apply this approach to each growth form suitability map rather than a single climate variable.
 
-I start by estimating the **temporal gradient** (i.e., $\frac{\text{d}c}{\text{d}t}$ ) that represents projected change per unit time.
+The approach used to estimate the velocity of phytoclimatic change (that is, the magnitude and direction of the change vector) flowing the implementation in [@ordonez_combined_2014] and [@ordonez_mapping_2016].
 
-This can be estimated in different ways:
+## Maping the velocity of phytoclimatic change.
 
-1)  As the *slope of a generalized least squares regression* on suitability maps for the 21kaBP to 0kaBP period for each cell with a autocorrelation structure of order one (AR1 model). This is the approach taken in [@dobrowskiClimateVelocityContiguous2013] and [@ordonezMappingClimaticMechanisms2016].
+The magnitude of Phytoclimate velocity vectors (i.e., speed; @fig-VelocitySummary) was the fastest in most of the northern hemisphere, particularly those areas covered by ice sheets during the LGM ([the Cordillera, Laurentide, Innuitian, Greenland, Barents-Kara, Fennoscandia and British-Irish Ice Sheets](https://en.wikipedia.org/wiki/Last_Glacial_Maximum); see [@ehlers_quaternary_2011]). *most likely due to Large temporal changes in suitability*.
 
-2)  As the *slope of a linear model* on suitability maps for the 21kaBP to 0kaBP period for each cell. This is the approach taken in by [@loarieVelocityClimateChange2009].
-
-3)  The *anomaly between the to end periods* (21kaBP vs. 0kaBP) divided by the time between the start (21kaBP) and end (0kaBP) points. This is the approach take in [@sandelInfluenceLateQuaternary2011].
-
-4)  A new approach we use here is based on the *median differences between consecutive time periods*. You can think of this as a rough way to consider the non linear trends in the relative changes in suitability over the evaluated time span.
-
-5)  A second new approach we use here is based on the *sum of absolute differences between consecutive time periods* divided by the time between the start (21kaBP) and end (0kaBP) points. You can think of this as a rough way to consider the total amount of change over the evaluated time span.
-
-A point to highlight is that the significance in the temporal trend can only be estimated for regression based approaches. For these, significance can be defined based on the p-value of the model regression slope *but for now we will not take that in to consideration*.
-
-I developed the `TempGradFnc()` function to estimate these using all five models of temporal change. Outputs for these, can be seen [HERE](https://github.com/AlejoOrdonez/PhytoClimate/tree/main/Data/Velocity). For illustration, (@fig-TempGradGF) shows how these can be estimated for all growth forms with the *median differences between consecutive time periods* approach.
+The Sahara and central and western Australia regions also show large velocities for all GF (@fig-VelocitySummary), particularly drought-deciduous shrubs(ShDdry), drought-deciduous trees (TDdry), Therophytes (Thero), and needle leaf trees (TN)). Such fast speeds are likely due to low suitability for these GF and due to homogeneous spatial patterns.
 
 ```{r}
-#| label: fig-TempGradGF
-#| fig-cap: "*Temporal heterogeneity (%-change per 100yrs) between 21kaBA and 0kaBP*"
+#| label: fig-VelocitySummary
+#| fig-align: center
+#| fig-cap: Rate at which each phytoclimates would have moved between the LGM to the Present day [Speed km/100yrs].
+#| echo: false
 
-if(length(dir("./Data/Velocity/TempChng_Anomaly1/", pattern = "All_"))==0){
-#Loop over all Growth Forms
-  TempHetByGF <- lapply(NamesDtFrm$Acro2,
-                        function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-## **Zero**: Generate a SpatRaster with the suitability rasteres
-        MapsList <- lapply(1:44,
-                           function(i){
-                             rasterize(x = as.matrix(xy), # points as a matrix
-                                       y = cr.ea, #  template raster
-                                       values = pml[[i]][,GF.Use] # Values to aggregate
-                             )
-                           })
-# make a multi-band SpatRaster
-        MapsPer.GF <- do.call("c",MapsList)
-## **First**: Generate a SpatRaster that estimates the temporal trend for each cell using the app function from terra
-        TempHetRast <- app(MapsPer.GF,
-                           fun = function(i, ff) ff(i,method="Anomaly1"),#
-                           ff=TempGradFnc,
-                           cores = 10 # the function is run automatically in parallel in 10 cores
-        )
-        TempHetRast <- mask(TempHetRast, # Mask based on the input raster
-                            MapsPer.GF[[1]])
-        return(TempHetRast)
-        })
-} else{
-  TempHetByGF <- lapply(NamesDtFrm$Acro2,
-                        function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-                          rast(paste0("./Data/Velocity/TempChng_lm/All_",
-                                      GF.Use,
-                                      "_TempChng.tif"))  
-                        })
+# Load the Velocity Rasters
+VelocityRast <- do.call("c",
+                        lapply(dir("./Data/LGM/Velocity/Velocity_Anomaly2",
+                                   pattern ="All_",
+                                   full.names = TRUE),
+                               function(x){rast(x)}))
+names(VelocityRast) <- sort(NamesDtFrm$Acronym)
+
+# Plot the Velocities 
+ggplot(wrld_simpl2) + # add the vector of the world
+  geom_spatraster(data = log10(VelocityRast)) + # Map the Displacement
+# Setup. plot of a continuous raster
+  scale_fill_whitebox_c(palette = "muted", #colour scheme 
+                        na.value = NA,#Do not map NA
+                        breaks = -3:3, # Legend breaks
+                        labels = c(">1000","100","10","1","0.1","0.01","<0.001"), # Legend Labels
+                        name = "Speed\n[km*100yrs]" # Legend Title
+                        ) +
+  facet_wrap(~lyr) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "Phytoclimate Velocities") # Fig title
+  
+```
+
+When comparing the velocity between growth forms in each cell, Climbers (Clim) were the group that showed, in most cases, the fastest speeds for a grid (@fig-FastestGF1). If Climbers are removed from the analysis, C3 and C4 grasses become the growth forms with the fastest velocities (@fig-FastestGF2).
+
+
+```{r}
+#| label: fig-FastestGF1
+#| fig-align: center
+#| fig-cap: Phytoclimate that has the fastest velocity vector for a given cell. Velocity vectors determine the movement of the suitability isocline between LGM to the Present day.
+#| echo: false
+
+# Define the Fastest GF per cell (All GF)
+FastGF <- app(VelocityRast,function(x){ifelse(is.na(x[1]),NA,order(x, decreasing = T)[1])})
+# Make the raster a factor
+FastGF <- as.factor(FastGF)
+levels(FastGF)[[1]]$label <- names(VelocityRast)
+# plot the raster raster
+
+ggplot(wrld_simpl2) + # add the vector of the world
+  geom_spatraster(data = FastGF) + # Map the Displacement
+# Setup. plot for continuous raster
+  scale_fill_whitebox_d(palette = "muted",
+                        na.value = NA,
+                        name = "Growth Form") +
+  new_scale_fill() + # clear fill set-up 
+# Plot the Ice extend
+    geom_spatraster(data = Ice,
+                  show.legend = FALSE) +
+  scale_fill_gradientn(colours = grey(0.4,alpha=0.5), # Colour as grey
+                       na.value = NA # Do not plot NAs
+                       ) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "GF with the fastest Velocity") # Fig title
+
+```
+
+```{r}
+#| label: fig-FastestGF2
+#| fig-align: center
+#| fig-cap: Phytoclimate that has the fastest velocity vector for a given cell. Estimates exclude climbers. Velocity vectors determine the movement of the suitability isocline between LGM to the Present day.
+#| echo: false
+
+# Define the Fastest GF per cell (No Climbers)
+FastGF <- app(VelocityRast,function(x){ifelse(is.na(x[1]),NA,order(x[-1], decreasing = T)[1])})
+# Make the raster a factor
+FastGF <- as.factor(FastGF)
+levels(FastGF)[[1]]$label <- names(VelocityRast)[-1]
+# plot the raster raster
+
+ggplot(wrld_simpl2) + # add the vector of the world
+  geom_spatraster(data = FastGF) + # Map the Displacement
+# Setup. plot of continuous raster
+  scale_fill_whitebox_d(palette = "muted",
+                        na.value = NA,
+                        name = "Growth Form") +
+    new_scale_fill() + # clear fill set-up 
+# Plot the Ice extend
+    geom_spatraster(data = Ice,
+                  show.legend = FALSE) +
+  scale_fill_gradientn(colours = grey(0.4,alpha=0.5), # Colour as grey
+                       na.value = NA # Do not plot NAs
+                       ) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "GF with the fastest Velocity\nExcluding Climbers") # Fig title
+```
+
+## Maping the displacement of phytoclimate velocity vectors. 
+
+A compound metric of change, that shows the **average rapidity** in the response across multiple variables is the **displacement** of velocity vectors (cf. [@ordonez_mapping_2016]). You can think of it as a metric of how fast would you need to move the keep the same environmental setup.
+
+**NOTE:** *Could this be considered how fast would a given GF assemblage (defined by their suitability) need to move to in response to environmental changes?*
+
+Using the phytoclimate velocity vectors, the displacement of these is estimated (@fig-MapDisplacement) using the suitability composition for all GF in a location.
+
+```{r}
+#| label: fig-MapDisplacement
+#| fig-align: center
+#| fig-cap: Rate at which phytoclimates would have moved between the LGM to the Present day (Displacement km/100yrs).
+#| echo: false
+
+#Load the Displacement values
+Displacement <- rast("./Data/LGM/Displacement/Displacement_Anomaly2/All_Displacement.tif")
+
+## ggplot
+ggplot(wrld_simpl2) + # add the vector of the world
+  geom_spatraster(data = log10(Displacement)) + # Map the Displacement
+# Setup. plot of continuous raster
+  scale_fill_whitebox_c(palette = "muted", #colour scheme 
+                        na.value = NA,#Do not map NA
+breaks = -3:3, # Legend breaks
+                        labels = c(">1000","100","10","1","0.1","0.01","<0.001"), # Legend Labels
+                         name = "Displacement\n[km*100yrs]" # Legend Title
+                        ) +
+  new_scale_fill() + # clear fill set-up 
+# Plot the Ice extend
+    geom_spatraster(data = Ice,
+                  show.legend = FALSE) +
+  scale_fill_gradientn(colours = grey(0.4,alpha=0.5), # Colour as grey
+                       na.value = NA # Do not plot NAs
+                       ) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "Phytoclimate displacement.")
+```
+
+This map shows again that the displacement of Phytoclimate velocity vectors (@fig-MapDisplacement) was the fastest in most of the northern hemisphere, particularly those areas covered by ice sheets during the LGM ([the Cordillera, Laurentide, Innuitian, Greenland, Barents-Kara, Fennoscandia and British-Irish Ice Sheets](https://en.wikipedia.org/wiki/Last_Glacial_Maximum); see [@ehlers_quaternary_2011]).
+
+Is also relevant to consider the balance between the **average** and **variability** in the rapidity of velocity vectors (@fig-DivAvgVsSD).
+
+```{r}
+#| label: fig-DivAvgVsSD
+#| fig-cap: Match between displacement Avg and displacement variability.
+#| fig-align: center
+#| echo: false
+
+# Functions for 2D colors
+colors=c("orange","blue","yellow", "red")
+colors <- col2rgb(colors)/255
+interpolate <- function(i){
+  if(!is.na(i[1])){
+    x <- i[1]
+    y <- i[2]
+    x1 <- colors[,2] * x + colors[,3] * (1-x)
+    x2 <- colors[,1] * x + colors[,4] * (1-x)
+    x2 * y + x1 * (1-y)
+  } else{
+    c(NA,NA,NA)
   }
-# Merge all values 
-TempHetByGF <- do.call("c",TempHetByGF)
-names(TempHetByGF) <- NamesDtFrm$Name
+}
 
-# plot the Temporal gradient
-levelplot(raster::stack(TempHetByGF), # level plot only works with raster files
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Temporal gradient [% per 100 yrs]\n(median difference of inter period diferecnes)",side=1,line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(col=rev(hcl.colors(100, palette = "RdYlBu"))) # add a legend
-          ) +
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
+# Scale Displacement - Avg
+DisplaceAvg <- app(log10(Displacement),function(x){scales::rescale(x,from = as.numeric(minmax(log10(Displacement))))})
+# Scale Displacement - sd
+DisplaceSD <- app(VelocityRast,sd,na.rm=T)+1
+DisplaceSD <- app(log10(DisplaceSD),function(x){scales::rescale(x,from = c(0,as.numeric(minmax(log10(DisplaceSD)))[2]))})
 
-To get a sense of how these changes compare between methods of evaluating temporal heterogeneity, I now show all five estimates for Evergreen trees (@fig-TempGradTE).
+# Merge into a single SpatRaster
+Displace2D <- c(DisplaceAvg,
+                DisplaceSD)
+# Turn values into RGB 
+Displace2DRGB <- app(Displace2D,
+                     interpolate)
 
-```{r}
-#| label: fig-TempGradTE
-#| fig-cap: "*Contrast of ABSOLUTE temporal heterogeneity (%-change per 100yrs) metrics for Evergreen trees. Scaled as $X^\frac{1}{5}$ for ease of visualization.*"
+# Plot the RGB
+RGBPlot <- ggplot(wrld_simpl2) +
+  geom_spatraster_rgb(data = Displace2DRGB,
+                      max_col_value =1,
+                      ) +
+  new_scale_fill() + # clear fill set-up 
+# Plot the Ice extend
+    geom_spatraster(data = Ice,
+                  show.legend = FALSE) +
+  scale_fill_gradientn(colours = grey(0.4,alpha=0.5), # Colour as grey
+                       na.value = NA # Do not plot NAs
+                       ) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "Phytoclimate displacement Avg Vs displacement SD") # Fig title
 
-# Load the Temp Heterogeneity surfaces
-TempHetTE <- lapply(dir("./Data/Velocity",pattern = "TempChng"),
-                        function(TimePer){#(TimePer <- dir("./Data/Velocity",pattern = "TempChng")[1])
-                          rast(paste0("./Data/Velocity/",
-                                      TimePer,
-                                      "/All_TE_TempChng.tif"))  
-                        })
-# Merge all values 
-TempHetTE <- do.call("c",TempHetTE)
-names(TempHetTE) <- gsub("TempChng_","",dir("./Data/Velocity",pattern = "TempChng"))
+# Legend
+X <- rast(matrix(rep(seq(0,1,length.out=10),
+                     each=10),
+                 ncol=10))
+Y <- rast(matrix(rep(seq(0,1,length.out=10),
+                     each=10),
+                 ncol=10,
+                 byrow=T))
+XY <- c(X,Y)
+XY <- app(XY,interpolate)
+leg2d <- ggplot() +
+  geom_spatraster_rgb(data = XY,
+                      max_col_value =1
+                      ) +
+  scale_x_continuous(name = "Displacement - Avg",
+                     breaks = seq(0,10,length.out=7),
+                     labels = 10^(-3:3),
+                     guide = guide_axis(n.dodge = 2)) +
+  scale_y_continuous(name = "Displacement - SD",
+                     breaks = seq(0,10,length.out=4),
+                     labels = 10^(0:3)) +
+  theme(axis.text = element_text(size=6),
+        axis.title = element_text(size=6,face="bold"),
+        panel.background = element_rect(fill='transparent'),
+        plot.background = element_rect(fill='transparent'))
+# Turn the Legend into a Grob
+g <- ggplotGrob(leg2d)
 
-# plot the Temporal gradient
-levelplot(raster::stack(abs(TempHetTE)^(1/5)), # level plot only works with raster files
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Absolute Temporal gradient [% per 100 yrs]\n(Estimated using five aproaches - Sacled as $X^(1/5)$ for ease of visualization)",side=1,line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(col=rev(hcl.colors(100, palette = "RdYlBu"))) # add a legend
-          ) +
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
 
-### Estimating the spatial heterogeneity
-
-The second step is to estimating the spatial heterogeneity (change per unit space; i.e., $\frac{\text{d}c}{\text{d}x}$) as in [@burrowsPaceShiftingClimate2011], [@dobrowskiClimateVelocityContiguous2013] and [@ordonezMappingClimaticMechanisms2016] for each map cell as "the slope of proportions" using the maximum average technique ([@burroughPrinciplesGeographicalInformation2015]).
-
-The method focuses on estimating the average change in the West-East (W-E) direction (negative values indicate a westward direction), and the North-South (N-S) direction (negative values indicate a equatorial direction) and divided by the avg distance between the cells (47km in the West-East direction and 66km in the North-South direction). The overall spatial gradients is then calculated as the vector sum of the N-S and W-E gradients, with the associated vector angle giving the direction of the gradient (@fig-SpacGradGF).
-
-```{r}
-#| label: fig-SpacGradGF
-#| fig-cap: "*Spatial heterogeneity (%-change per km) for the baseline period (21kaBP). Values Scaled as $X^\frac{1}{5}$ to increse contrast.*"
-
-if(length(dir("./Data/Velocity/SpatHet/",
-              pattern="All_"))==0){
-#Loop over all Growth Forms
-  SpaceHetByGF <- lapply(NamesDtFrm$Acro2,
-                        function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-## **Zero**: Generate a SpatRaster with the suitability rasteres
-        MapsList <- lapply(1:44,
-                           function(i){
-                             rasterize(x = as.matrix(xy), # points as a matrix
-                                       y = cr.ea, #  template raster
-                                       values = pml[[i]][,GF.Use] # Values to aggregate
-                             )
-                           })
-# make a multi-band SpatRaster
-        MapsPer.GF <- do.call("c",MapsList)
-## **Second**: Estimate the spatial gradients magnitude using a using the maximum average technique [Burrough & McDonnell 1998].
-      SpaceHetRast <- SpatHetFnc(MapsPer.GF[[1]])
-       return(SpaceHetRast)
-        })
-  } else{
-    SpaceHetByGF <- lapply(NamesDtFrm$Acro2,
-                        function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-                          rast(paste0("./Data/Velocity/SpatHet/All_",
-                                      GF.Use,
-                                      "_SpatHet.tif"))  
-                        })
-  }      
-# Merge all values 
-SpaceHetByGF <- do.call("c",SpaceHetByGF)
-names(SpaceHetByGF) <- NamesDtFrm$Name
-
-# plot the Spatial gradient
-levelplot(raster::stack((SpaceHetByGF)^(1/5)), # level plot only works with raster files
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Spatial gradient [(% per kg)^(1/5)]",side=1,line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(col=rev(hcl.colors(100, palette = "RdYlBu"))) # add a legend
-          ) +
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
-
-### Estimating the magnitude of the velocity vectors.
-
-With these two variables (that is the spatial heterogeneity, and the temporal heterogeneity) I can estimate the velocity as the ratio between these two. Here there is a need to do some corrections based on some mathematical issues of estimating ratios.
-
-One of this is estimating a ration when the denominator is zero (a case here when the spatial gradient is zero as all neighboring cells have the same value). In this situation you can either define these cells to have the minimum value of differentiation allowed based on the "accuracy" of your measurements (as done by by [@loarieVelocityClimateChange2009] and [@sandelInfluenceLateQuaternary2011]). An alternative, is to define these areas as the "maximum" velocity used for visualization (1000km per 100yr in this case).
-
-A second issue is velocities that are two small as the spatial change is considerably larger than the temporal change. Based on the spatiotemporal scale of the study, these changes can be set to the minimum possible velocity (0.001km per 100yr in this case).
-
-With these clarifications, we then estimated the velocity of change for each of the evaluated growth forms (@fig-VelocityGF). But as I also implemented multiple metrics of temporal change, velocity estimates need to be estimated for each of these.
-
-```{r}
-#| label: fig-VelocityGF
-#| fig-cap: "*Velocity of change for Per Growth Form*"
-if(length(dir("./Data/Velocity/Velocity_Anomaly1/",
-              pattern="All_"))==0){
-#Loop over all Growth Forms
-  VelocityByGF <- lapply(NamesDtFrm$Acro2,
-                        function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-## **Zero**: load a SpatRaster with the Temporal heterogeneity 
-                          TempHetRast <-  rast(paste0("./Data/Velocity/Velocity_Anomaly1/All_",GF.Use,"_TempChng.tif"))
-## **Zero**: load a SpatRaster with the Space heterogeneity 
-                          SpaceHetRast <- rast(paste0("./Data/Velocity/SpatHet/All_",GF.Use,"_SpatHet.tif"))
-## **Forth**: Estimate the velocity magnitude (i.e., speed) as the ratio between the temporal and spatial gradient.
-                          Velocity <- VelocityFnc (TempHetRast,
-                                                   SpaceHetRast)
-                          return(Velocity)
-                          })
-  } else{
-    VelocityByGF <- lapply(NamesDtFrm$Acro2,
-                        function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-                          rast(paste0("./Data/Velocity/Velocity_Anomaly1/All_",
-                                      GF.Use,
-                                      "_Velocity.tif"))
-                        })
-  } 
-# Merge all values 
-VelocityByGF <- do.call("c",VelocityByGF)
-names(VelocityByGF) <- NamesDtFrm$Name
-
-# plot the Temporal gradient
-levelplot(raster::stack(log10(VelocityByGF)), # level plot only works with raster files
-          at=seq(-3,3,length.out=100), # zlim 
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Velocity of climate changt [km / 100 yrs]",side=1,line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(labels = list(at = -3:3, # add a legend and its properties
-                                        labels = 10^c(-3:3),
-                                        col=rev(hcl.colors(100, palette = "RdYlBu"))))
-          ) +
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
-
-To get a sense of how these changes compare between methods of evaluating temporal heterogeneity, I now show all five estimates for Evergreen trees (@fig-VelocityTE).
-
-```{r}
-#| label: fig-VelocityTE
-#| fig-cap: "*Velocity of change (km per 100yrs) between 21kaBP and 0kaBP for Evergreen trees.*"
-
-# Load the Temp Heterogeneity surfaces
-VelocityTE <- lapply(dir("./Data/Velocity",pattern = "Velocity"),
-                        function(TimePer){#(TimePer <- dir("./Data/Velocity",pattern = "TempChng")[1])
-                          rast(paste0("./Data/Velocity/",
-                                      TimePer,
-                                      "/All_TE_Velocity.tif"))  
-                        })
-# Merge all values 
-VelocityTE <- do.call("c",VelocityTE)
-names(VelocityTE) <- gsub("Velocity_","",dir("./Data/Velocity",pattern = "Velocity"))
-
-# plot the Temporal gradient
-levelplot(raster::stack(log10(VelocityTE)), # level plot only works with raster files
-          at=seq(-3,3,length.out=100), # zlim
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Absolute Temporal gradient [% per 100 yrs]\n(Estimated using five aproaches)",side=1,line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(labels = list(at = -3:3,# add a legend and its properties
-                                      labels = 10^c(-3:3),
-                                      col=rev(hcl.colors(100, palette = "RdYlBu"))))
-          ) +
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
-
-### Estimating the Bearing of the velocity vector
-
-Velocity as a vector has two components, a magnitude (defined here by the ration between temporal and spatial changes) and a direction (defined by the spatial gradient vector and the direction of the temporal change).
-
-The calculation of the velocity vector bearing is determined by the East-West and North-South *components* of the spatial gradient. The sum of these define the magnitude and direction of vector of the spatial change (the one defining towards where the incline would move). The **bearing** of this resulting vector is the angle measured clockwise with 90o centered on the corresponding pole. Therefore, an angle ranging between 0 and 180 means the vector is Polewards bound and angles between 180 and 359 degrees is Equatorward bound. A 0 bearing means the vector is Eastbound in both the Northern and Southern hemisphere, and an angle of 180 is Westbound both the Northern and Southern hemisphere.
-
-Furthermore, the direction of change is considered to be from high-values to low-values. So if the temporal change indicates that a cell is decreasing in values over time, the bearing of the vector would need to be filliped as it will change from being a source to being a sink.
-
-I estimated the bearing of the velocity vector using the vector resulting from the sum of the rise and run run of the spatial gradient, reversing the direction of change is the temporal trend was negative (@fig-BearingGF).
-
-```{r}
-#| label: fig-BearingGF
-#| fig-cap: "*Bearing of the spatial gradients *"
-if(length(dir("./Data/Velocity/SpatHet/",
-              pattern="All_"))==0){
-#Loop over all Growth Forms
-  SpaceHetByGF <- lapply(NamesDtFrm$Acro2,
-                        function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-## **Zero**: Generate a SpatRaster with the suitability rasteres
-        MapsList <- lapply(1:44,
-                           function(i){
-                             rasterize(x = as.matrix(xy), # points as a matrix
-                                       y = cr.ea, #  template raster
-                                       values = pml[[i]][,GF.Use] # Values to aggregate
-                             )
-                           })
-# make a multi-band SpatRaster
-        MapsPer.GF <- do.call("c",MapsList)
-## **Third**: Estimate the spatial gradients direction using a using the maximum average technique [Burrough & McDonnell 1998].
-##            Here 90 degrees is poleward direction, so that 0 degrees is East in the north and West in the south
-      a<-Sys.time()
-      BearingByGF <- BearingFnc(MapsPer.GF)
-       return(BearingByGF)
-        })
-  } else{
-    BearingByGF <- lapply(NamesDtFrm$Acro2,
-                        function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-                          rast(paste0("./Data/Velocity/Bearing/All_",
-                                      GF.Use,
-                                      "_Bearing.tif"))  
-                        })
-  }      
-# Merge all values 
-BearingByGF <- do.call("c",BearingByGF)
-names(BearingByGF) <- NamesDtFrm$Name      
-      
-# plot the Spatial gradient
-levelplot(raster::stack(BearingByGF), # level plot only works with raster files
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Bearing [Degrees from North]",side=1,line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(at=seq(0,360,length.out=100),  # add a legend and its properties
-                        labels = list(at = seq(0,360,by=90),
-                                      labels = c("Eastward", "Poleward","Westward","Eastward"),
-                                      col=rev(hcl.colors(100, palette = "RdYlBu"))))
-          ) +
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
-
-### Displacement of phytoclimatic change as a metric of Ecological Novelty.
-
-As defined in [@ordonezMappingClimaticMechanisms2016], displacement of climatic vectors is the mean of multiple velocity vectors. This metric indicates how "fast" would/will an environmental setup (weighting all variables equally) would move given the balance of local environmental gradients and temporal trends in environmental variables. A fast displacement suggests that the magnitudes of velocity vectors (i.e., speed) are rather large, whereas slow displacement indicate that the magnitudes of velocity vectors is small across evaluated growth forms.
-
-Here, I leverage the velocity estimates for the 14 evaluated growth forms to assess how fast has the *"growth form setup"* changed since the Last Glacial Maxim (LGM; \~21ka) (@fig-DisplacementAll). The *Displacement of growth form suitability*. For this, I used the *geometric mean* of the velocity vectors (here implemented as the mean of Log-10 velocities).
-
-```{r}
-#| length: fig-DisplacementAll
-#| fig-cap: "*Displacement of growth form suitability velocity vectors*"
-if(length(dir("./Data/Displacement/Displacement_AbsDif",
-              pattern="All_"))==0){
-    Displacement <- lapply(dir("./Data/Displacement"),
-                          function(Model){#(Model <- dir("./Data/Displacement")[1])
-                            VelocityByGF <- lapply(NamesDtFrm$Acro2,
-                                                   function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-                                                     rast(paste0("./Data/Velocity/",
-                                                                 gsub("Displacement_",
-                                                                      "Velocity_",
-                                                                      Model),
-                                                                 "/All_",
-                                                                 GF.Use,
-                                                                 "_Velocity.tif"))
-                                                   })
-# Merge all values 
-                            VelocityByGF <- do.call("c",VelocityByGF)
-                            names(VelocityByGF) <- NamesDtFrm$Name
-# Estimate the Displacement <-  geometric mean of velocities
-                            Displacement <- 10^mean(log10(VelocityByGF))
-                            return(Displacement)
-                            })
-    } else{
-# Load the Displacement vectors
-  Displacement <- lapply(dir("./Data/Displacement"),
-                          function(Model){#(Model <- dir("./Data/Displacement")[1])
-                            rast(paste0("./Data/Displacement/",Model,"/All_Displacement.tif"))
-                          })
-  }
-# Merge all values 
-Displacement <- do.call("c",Displacement)
-
-# Give names to the layers
-names(Displacement) <- gsub("Displacement_",
-                            "",
-                            dir("./Data/Displacement"))  
-
-# plot the Displacement gradient
-levelplot(raster::stack(log10(Displacement)), # level plot only works with raster files
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Displacement as the average over GF Velocities [km/ yrs]\n(Estimated using five aproaches)",side=1,line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(at=seq(-3,3,length.out=100),  # add a legend and its properties
-                        labels = list(at = -3:3,
-                                      labels = 10^c(-3:3),
-                                      col=rev(hcl.colors(100, palette = "RdYlBu"))))
-          ) +
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
-
-### Divergence of phytoclimatic velocity vecrtors as a metric of Ecological Novelty.
-
-As defined in [@ordonezMappingClimaticMechanisms2016], divergence of climatic vectors is the angle between two velocity vectors. In a multivariate context this definition is not practical, and I instead use the standard deviations of bearings as in [@burkeDifferingClimaticMechanisms2019]. This metric indicates how "variable" are the directions of velocity vectors in a given location for the 14 evaluated growth forms. A low divergence suggests that all velocity vectors of all climate variables would tend to shift along the same axis of direction, whereas high divergences indicate that velocity vectors lack congruence in orientation and hence so might species distribution shifts.
-
-Here, I leverage the velocity estimates for the 14 evaluated growth forms to assess how fast has the *"growth form setup"* changed since the Last Glacial Maxim (LGM; \~21ka) (@fig-DivergenceAllGF). The *Displacement of growth form suitability*. For this, I used the *geometric mean* of the velocity vectors (here implemented as the mean of Log-10 velocities).
-
-```{r}
-#| label: fig-DivergenceAllGF
-#| fig.cap: "*Divergence of growth form suitability velocity vectors*"
-if(!"All_Divergence.tif"%in%dir("./Data/Divergence")){
-  BearingByGF <- lapply(NamesDtFrm$Acro2,
-                           function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
-                             rast(paste0("./Data/Velocity/Bearing/All_",
-                                         GF.Use,
-                                         "_Bearing.tif"))
-                           })
-# Estimate the Displacement <-  geometric mean of velocities
-    Divergence <- app(BearingByGF,sd,na.rm=T)
-} else{
-  Divergence <- rast("./Data/Divergence/All_Divergence.tif")
-}   
-#plot the Divergence
-plot(Divergence,
-     main = "Divergence accorss growth form suitability",
-     col = rev(hcl.colors(100,"RdYlBu")),
-     xpd=NA)
-# add world map
-plot(wrld_simpl, add=T)
-# add the ice maps 
-plot(Ice, 
-    col = gray(0.3,alpha = 0.6),
-    legend = F,
-      add = T)
-```
-
-### Velocity *per* Greenland Interstadial and Greenland Stadials
-
-Here I will estimate the velocity of change of the growth form suitability surfaces for specific time periods for the Last Termination defined by the GRIP Greenland ice-core oxygen isotope signal as in [@bjorckEventStratigraphyLast1998].
-
-The four (4) periods to be used here correspond to two stadial episodes (Greenland Stadials 1 (GS-1) and 2 (GS-2)), one interstadial event (Greenland Interstadial 1 (GI-1)), and the Holocene. The GI-1 and GS-2 correspond to other known periods, namely the [*Bølling--Allerød warming*](https://en.wikipedia.org/wiki/B%C3%B8lling%E2%80%93Aller%C3%B8d_warming) (\~ 14.7kaBP to 12.7kaBP) that corresponds to GI-1, and the subsequent [*Younger Dryas cooling*](https://en.wikipedia.org/wiki/Younger_Dryas) (\~ 12.7kaBP to 11.5kaBP) that corresponds to GS-1.
-
-***Table 1*** - Depths and preliminary ages (ad1950) of the onset of events and episodes in the GRIP ice-core, including the Holocene epoch. Dates based on [@bjorckEventStratigraphyLast1998].
-
-| **Events** | **Ice-core age**     |
-|------------|----------------------|
-| Holocene   | 11.5kaBP to 0 kaBP   |
-| GS-1       | 12.7kaBP to 11.5kaBP |
-| GI-1       | 14.7kaBP to 12.7kaBP |
-| GS-2       | 21.2kaBP to 14.7kaBP |
-
-Like above, I also assess the velocity of change as the ratio between the spatial and temporal changes, for each growth form each time period. For this, I loop over the the time periods and growth forms, and divide the process in three stages, and in each stage. The codes is as the one in the **Estimating the magnitude of the velocity vectors**. Below I show the different velocity metrics (based on the median of between periods changes) across growth forms for each period (@fig-VelocityGS2; @fig-VelocityGI1, @fig-VelocityGS2, @fig-VelocityHolocene):
-
-```{r}
-# label: VelocityPerPeriod
-# Table with all the dates
-# I will loop over all periods 
-VelocityAllList <- lapply( c("Holocene","GS1","GI1","GS2"),
-                          function(TimePer){#(TimePer<-"Holocene")
-# Load and plot the Velocity magnitudes as a list
-  VelocityAll <- lapply(NamesDtFrm$Acro2,
-                        function(GF.Use){
-                          rast(paste0("./Data/Velocity/Velocity_Anomaly1/",
-                                      TimePer,"_",
-                                      GF.Use,
-                                      "_Velocity.tif"))
-                          })
-# Make a multi-band SpatRaster
-  VelocityAll <- do.call("c",VelocityAll)
-  names(VelocityAll) <- NamesDtFrm$Name
-  return(VelocityAll)
-})
-names(VelocityAllList) <- c("Holocene","GS1","GI1","GS2")
-```
-
-```{r}
-#| label: fig-VelocityGS2
-#| fig-cap: "*Velocity for all evaluated growth forms during the Greenland Stadial-2 (Post-LGM)*"
-
-# plot the Velocity
-levelplot(raster::stack(log10(VelocityAllList[["GS2"]])), # level plot only works with raster files
-          scales = list(draw=FALSE), # To remove the Latlong
-          at=seq(-3,3.000434,length.out=100), 
-          main=list("Velocity [km per 100yrs]\nGS2",
-                    side=1,
-                    line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(labels = list(at = -3:3, # add a legend and its properties
-                                      labels = 10^c(-3:3),
-                                      col=rev(hcl.colors(100, palette = "RdYlBu"))))
-          ) + 
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
-
-```{r}
-#| label: fig-VelocityGI1
-#| fig-cap: "*Velocity for all evaluated growth forms during the Greenland Inerstadial-1 (BA)*"
-
-# plot the Velocity
-levelplot(raster::stack(log10(VelocityAllList[["GI1"]])), # level plot only works with raster files
-          at = seq(-3,3.1,length.out=100),
-          scales = list(draw=FALSE), # To remove the Latlong
-          main=list("Velocity [km per 100yrs]\nGI1",
-                    side=1,
-                    line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(labels = list(at = -3:3, # add a legend and its properties
-                                      labels = 10^c(-3:3),
-                                      col=rev(hcl.colors(100, palette = "RdYlBu"))))
-          ) + 
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
-
-```{r}
-#| label: fig-VelocityGS1
-#| fig-cap: "*Velocity for all evaluated growth forms during the Greenland Stadial-1 (YD)*"
-
-# plot the Velocity
-levelplot(raster::stack(log10(VelocityAllList[["GS1"]])), # level plot only works with raster files
-          scales = list(draw=FALSE), # To remove the Latlong
-          at=seq(-3,3.000434,length.out=100), 
-          main=list("Velocity [km per 100yrs]\nGS1",
-                    side=1,
-                    line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(labels = list(at = -3:3, # add a legend and its properties
-                                      labels = 10^c(-3:3),
-                                      col=rev(hcl.colors(100, palette = "RdYlBu"))))
-          ) + 
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
-
-```{r}
-#| label: fig-VelocityHolocene
-#| fig-cap: "*Velocity for all evaluated growth forms during the Holocene (YD)*"
-# plot the Velocity
-levelplot(raster::stack(log10(VelocityAllList[["Holocene"]])), # level plot only works with raster files
-          scales = list(draw=FALSE), # To remove the Latlong
-          at=seq(-3,3.000434,length.out=100), 
-          main=list("Velocity [km per 100yrs]\nHolocene",
-                    side=1,
-                    line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(labels = list(at = -3:3, # add a legend and its properties
-                                      labels = 10^c(-3:3),
-                                      col=rev(hcl.colors(100, palette = "RdYlBu"))))
-          ) + 
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
-```
-
-### Displacement and divergence of phytoclimatic change *per* Greenland Interstadial and Greenland Stadials.
-
-Now with the metrics of velocity and bearings I can then estimate displacement and divergence of climatic vectors (cf. [@ordonezMappingClimaticMechanisms2016]) for mutiple periods (@fig-DisplacementGS2, @fig-DisplacementGI1, @fig-DisplacementGS1, (@fig-DisplacementHolocene).
-
-As a reminder, displacement of climatic vectors is the mean of multiple velocity vectors and indicates how "fast" would/will an environmental setup (weighting all variables equally) would move given the balance of local environmental gradients and temporal trends in environmental variables.
-
-```{r}
-#| label: fig-DisplacementGS2
-#| fig-cap: "*Displacement of growth form suitability velocity vectors during the GS2**"
-(TimePer<-"GS2")
-# Load and plot the Velocity magnitudes as a list
-  DisplacementAllList <- lapply(c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm"),
-                           function(Model){#(Model<-"AbsDif")
-                             rast(paste0("./Data/Displacement/Displacement_",
-                                         Model,
-                                         "/",
-                                         TimePer,
-                                         "_Displacement.tif"))
-                           })
-# Make a multi-band SpatRaster
-  DisplacementAll <- do.call("c",DisplacementAllList)
-  names(DisplacementAll) <- c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")
-# plot the Displacement
-  print(
-  levelplot(raster::stack(log10(DisplacementAll)), # level plot only works with raster files
-            at=seq(-3,3.000434,length.out=100),
-            scales = list(draw=FALSE), # To remove the Latlong
-            main=list(paste0("Displacement [km per 100yrs]\n",TimePer),
-                      side=1,
-                      line=-0.5), # Main title
-            col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-            colorkey = list(labels = list(at = -3:3, # add a legend and its properties
-                                          labels = 10^c(-3:3),
-                                          col=rev(hcl.colors(100, palette = "RdYlBu"))))
-            ) + 
-# Add the country outlines
-  layer(sp.lines(wrld_simpl)
-        ) + 
-# Plot the Ice maps 
-  levelplot(raster::raster(Ice), # add the ice maps 
-            col.regions = "dark grey",
-            alpha.regions = 0.6)
-)
-```
-
-```{r}
-#| label: fig-DisplacementGI1
-#| fig-cap: "*Displacement of growth form suitability velocity vectors during the GI1**"
-(TimePer<-"GI1")
-# Load and plot the Velocity magnitudes as a list
-  DisplacementAllList <- lapply(c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm"),
-                           function(Model){#(Model<-"AbsDif")
-                             rast(paste0("./Data/Displacement/Displacement_",
-                                         Model,
-                                         "/",
-                                         TimePer,
-                                         "_Displacement.tif"))
-                           })
-# Make a multi-band SpatRaster
-  DisplacementAll <- do.call("c",DisplacementAllList)
-  names(DisplacementAll) <- c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")
-# plot the Displacement
-  print(
-  levelplot(raster::stack(log10(DisplacementAll)), # level plot only works with raster files
-            at=seq(-3,3.000434,length.out=100),
-            scales = list(draw=FALSE), # To remove the Latlong
-            main=list(paste0("Displacement [km per 100yrs]\n",TimePer),
-                      side=1,
-                      line=-0.5), # Main title
-            col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-            colorkey = list(labels = list(at = -3:3, # add a legend and its properties
-                                          labels = 10^c(-3:3),
-                                          col=rev(hcl.colors(100, palette = "RdYlBu"))))
-            ) + 
-# Add the country outlines
-  layer(sp.lines(wrld_simpl)
-        ) + 
-# Plot the Ice maps 
-  levelplot(raster::raster(Ice), # add the ice maps 
-            col.regions = "dark grey",
-            alpha.regions = 0.6)
-)
-```
-
-```{r}
-#| label: fig-DisplacementGS1
-#| fig-cap: "*Displacement of growth form suitability velocity vectors during the GS1**"
-(TimePer<-"GS1")
-# Load and plot the Velocity magnitudes as a list
-  DisplacementAllList <- lapply(c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm"),
-                           function(Model){#(Model<-"AbsDif")
-                             rast(paste0("./Data/Displacement/Displacement_",
-                                         Model,
-                                         "/",
-                                         TimePer,
-                                         "_Displacement.tif"))
-                           })
-# Make a multi-band SpatRaster
-  DisplacementAll <- do.call("c",DisplacementAllList)
-  names(DisplacementAll) <- c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")
-# plot the Displacement
-  print(
-levelplot(raster::stack(log10(DisplacementAll)), # level plot only works with raster files
-            at=seq(-3,3.000434,length.out=100),
-            scales = list(draw=FALSE), # To remove the Latlong
-            main=list(paste0("Displacement [km per 100yrs]\n",TimePer),
-                      side=1,
-                      line=-0.5), # Main title
-            col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-            colorkey = list(labels = list(at = -3:3, # add a legend and its properties
-                                          labels = 10^c(-3:3),
-                                          col=rev(hcl.colors(100, palette = "RdYlBu"))))
-            ) + 
-# Add the country outlines
-  layer(sp.lines(wrld_simpl)
-        ) + 
-# Plot the Ice maps 
-  levelplot(raster::raster(Ice), # add the ice maps 
-            col.regions = "dark grey",
-            alpha.regions = 0.6)
-)
-```
-
-```{r}
-#| label: fig-DisplacementHolocene
-#| fig-cap: "*Displacement of growth form suitability velocity vectors during the Holocene**"
-(TimePer<-"Holocene")
-# Load and plot the Velocity magnitudes as a list
-  DisplacementAllList <- lapply(c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm"),
-                           function(Model){#(Model<-"AbsDif")
-                             rast(paste0("./Data/Displacement/Displacement_",
-                                         Model,
-                                         "/",
-                                         TimePer,
-                                         "_Displacement.tif"))
-                           })
-# Make a multi-band SpatRaster
-  DisplacementAll <- do.call("c",DisplacementAllList)
-  names(DisplacementAll) <- c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")
-# plot the Displacement
-  print(
-levelplot(raster::stack(log10(DisplacementAll)), # level plot only works with raster files
-            at=seq(-3,3.000434,length.out=100),
-            scales = list(draw=FALSE), # To remove the Latlong
-            main=list(paste0("Displacement [km per 100yrs]\n",TimePer),
-                      side=1,
-                      line=-0.5), # Main title
-            col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-            colorkey = list(labels = list(at = -3:3, # add a legend and its properties
-                                          labels = 10^c(-3:3),
-                                          col=rev(hcl.colors(100, palette = "RdYlBu"))))
-            ) + 
-# Add the country outlines
-  layer(sp.lines(wrld_simpl)
-        ) + 
-# Plot the Ice maps 
-  levelplot(raster::raster(Ice), # add the ice maps 
-            col.regions = "dark grey",
-            alpha.regions = 0.6)
-)
-```
-
-Divergence of climatic vectors (@fig-DivergencePerPeriod) is the standard deviations of bearings as in [@burkeDifferingClimaticMechanisms2019]. This metric indicates how "variable" are the directions of velocity vectors in a given location for the 14 evaluated growth forms.
-
-```{r}
-#| labels: fig-DivergencePerPeriod
-#| fig-cap: "*Divergence of growth form suitability velocity vectors  during four Post-LGM periods*"
-
-# I will loop over all periods 
-# Load and plot the Divergence magnitudes as a list
-Divergence <- lapply(c("Holocene","GS1","GI1","GS2" ),
-                         function(TimePer){
-                           rast(paste0("./Data/Divergence/",
-                                       TimePer,
-                                       "_Divergence.tif"))
-                         })
-# Make a multi-band SpatRaster
-Divergence <- do.call("c",Divergence)
-names(Divergence) <- c("Holocene","GS1","GI1","GS2" )
-
-# plot the Displacement
-levelplot(raster::stack(Divergence), # level plot only works with raster files
-          scales = list(draw=FALSE), # To remove the Latlong
-          at = seq(0,180,length.out=100),
-          main=list("Divergence of growth form suitability",
-                    side=1,
-                    line=-0.5), # Main title
-          col.regions = rev(hcl.colors(100,"RdYlBu")), # set the colors
-          colorkey = list(at=seq(0,180,length.out=100),  # add a legend and its properties
-                        labels = list(at = seq(0,180,by=30),
-                                      labels = seq(0,180,by=30),
-                                      col=rev(hcl.colors(100, palette = "RdYlBu"))))
-          ) + 
-# Add the country outlines
-layer(sp.lines(wrld_simpl)
-      ) + 
-# Plot the Ice maps 
-levelplot(raster::raster(Ice), # add the ice maps 
-          col.regions = "dark grey",
-          alpha.regions = 0.6)
+# Add the legend as a insert to the RGB plot
+RGBPlot +
+  annotation_custom(
+    grob = g,
+    xmin = -16800000,
+    xmax = -8253891,
+    ymin = -8815273,
+    ymax = -50573
+  )
 
 ```
 
-## Print the functions used for estimate velocity
 
-Temporal Heterogeneity
 
-```{r tempHet}
-## TempGradFnc: Function to estimate temporal gradients. For this, you need to specify:
-####  The vector input a row in a raster RastIn,
-####  The temporal spacing in years between raster layers [TimeStep]
-####  The Method Used to estimate the Change over time [method "ARM","glm","lm","AbsDif","Anomaly"]
-####  The regression family to use if method is glm [FamilyUse]
-TempGradFnc
-```
-
-```{r SpatHet}
-#-------------------------------------------------------------------------------
-## SpatHetFnc: Function to estimate the spatial gradients magnitude using a
-##             using the maximum average technique [Burrough & McDonnell 1998].
-####  The Raster input [RastIn],
-SpatHetFnc
-```
-
-Bearing
-
-```{r bearing}
-#-------------------------------------------------------------------------------
-## BearingFnc: Function to estimate the spatial gradients bearing using a
-##             using the maximum average technique [Burrough & McDonnell 1998].
-##             The angle is define in a poleward direction, so 90-D point to the
-##             pole.
-####  The Raster input [RastIn],
-BearingFnc
-```
-
-Velocity
-
-```{r VelFnc}
-## VelocityFnc: Function to estimate the velocity of a surface as the ratio 
-##              between the spatial gradients and temporal changes.
-####  The Raster withe the temporal heterogeneity  [TempHet],
-####  The Raster withe the spatial heterogeneity  [SpatHet],
-VelocityFnc
-```
