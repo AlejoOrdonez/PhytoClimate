@@ -53,7 +53,7 @@ The novelty metrics in [@ordonez_mapping_2016] focus on measuring three differen
 
 ## Input information.
 
-Here using will use the maps of growth form (GF) suitability for 14 GFs:
+Here using will use the phytoclimates maps of 14 growth form (GF):
 
 ```{r}
 #| label: Table
@@ -61,7 +61,7 @@ Here using will use the maps of growth form (GF) suitability for 14 GFs:
 knitr::kable(NamesDtFrm[,-2])
 ```
 
-## Data Inputs - Phytoclimates
+## Data Inputs - Phytoclimates.
 
 All analyses use **Phytoclimates** as inputs. These variables can be defined as summaries of the climatic suitability for all plant species with a given growth form (e.g. evergreen tree, grass). Its estimation is based on a physiologically informed suitability model (i.e., an Eco-physiological species distribution Model - *TTR*). The models are based on defining the functional form of physiological constraints to plant growth (as modelled in Dynamic Global Vegetation Models \[DGVMs\]), parameterizing these using occurrence data, and then using the statistical methods of Species Distribution Modelling (SDMs) to define suitability surfaces for each evaluated species..
 
@@ -95,9 +95,9 @@ ggplot(wrld_simpl2) + # add the vector of the world
   labs(title = "Phytoclimate Suitability [1950]")
 ```
 
-The values in the figures above can be defined as the proportion of the species within a growth form for which the environmental conditions at 50x50km a grid-cell are considered suitable at a given period (here 1950; @fig-Maps0kaBP).
+The values in the figures above (i.e., phytoclimate suitability) can be defined as the proportion of the species within a growth form for which the environmental conditions at 50x50km a grid-cell are considered suitable at a given period (here 1950; @fig-Maps0kaBP).
 
-## What is the velocity of phytoclimatic change?.
+## What is the velocity of phytoclimatic change?
 
 The *Velocity of environmental change idea* is built on the approach developed by [@loarie_velocity_2009], where velocity for an environmental variable (e.g., temperature) is estimated as:
 
@@ -105,17 +105,17 @@ $$V_{l} = \frac{\text{d}c/\text{d}t}{\text{d}c/\text{d}x}$$
 
 Where $\frac{\text{d}c}{\text{d}t}$ is the ratio between the projected change per unit time, and $\frac{\text{d}c}{\text{d}x}$ is the local spatial gradient in the variable of interest.
 
-In this context, velocity vectors for Phytoclimates measure the **rapidity** and **direction** of a change in the suitability of environmental conditions for a growth form. You can think of this as a measurement of how *fast* would the "suitability" surface of a given growth form move in space (like in [@serra-diaz_bioclimatic_2014]).
+In this context, velocity vectors for phytoclimates measure the **rapidity** and **direction** of a change in the suitability of environmental conditions for the species in a given growth form. You can think of this as a measurement of how *fast* would the "suitability" surface of an average species in a given growth form has/will move in space (like in [@serra-diaz_bioclimatic_2014]).
 
-This metric answer the question, *"How fast to move to keep the same 'suitability'"*, assuming that the movement is from an area of low to a place of higher suitability between two times points. A 10km/year value means that to compensate for the change in 1yr, you would need to move to a location 10km away. Here, I apply this approach to each growth form suitability map rather than a single climate variable.
+This metric answer the question, *"How fast to move to keep the same 'suitability'"*, assuming that the movement is from an area of low to a place of higher suitability between two times points. A 10km/year value means that to compensate for the change in 1yr, you would need to move to a location 10km away. I apply this approach to each phytoclimates suitability map rather than a single climate variable.
 
-The approach used to estimate the velocity of phytoclimatic change (that is, the magnitude and direction of the change vector) flowing the implementation in [@ordonez_combined_2014] and [@ordonez_mapping_2016].
+The approach used to estimate the velocity of phytoclimatic change (that is, the magnitude and direction of the change vector) flows the implementation in [@ordonez_combined_2014] and [@ordonez_mapping_2016].
 
 ## Maping the velocity of phytoclimatic change.
 
 The magnitude of Phytoclimate velocity vectors (i.e., speed; @fig-VelocitySummary) was the fastest in most of the northern hemisphere, particularly those areas covered by ice sheets during the LGM ([the Cordillera, Laurentide, Innuitian, Greenland, Barents-Kara, Fennoscandia and British-Irish Ice Sheets](https://en.wikipedia.org/wiki/Last_Glacial_Maximum); see [@ehlers_quaternary_2011]). *most likely due to Large temporal changes in suitability*.
 
-The Sahara and central and western Australia regions also show large velocities for all GF (@fig-VelocitySummary), particularly drought-deciduous shrubs(ShDdry), drought-deciduous trees (TDdry), Therophytes (Thero), and needle leaf trees (TN)). Such fast speeds are likely due to low suitability for these GF and due to homogeneous spatial patterns.
+The Sahara and central and western Australia regions also show large velocities for all phytoclimates (@fig-VelocitySummary), particularly those from drought-deciduous shrubs(ShDdry), drought-deciduous trees (TDdry), Therophytes (Thero), and needle leaf trees (TN) growth forms. Such fast speeds are likely due to low suitability for these phytoclimates and due to homogeneous spatial patterns.
 
 ```{r}
 #| label: fig-VelocitySummary
@@ -147,7 +147,9 @@ ggplot(wrld_simpl2) + # add the vector of the world
   
 ```
 
-When comparing the velocity between growth forms in each cell, Climbers (Clim) were the group that showed, in most cases, the fastest speeds for a grid (@fig-FastestGF1). If Climbers are removed from the analysis, C3 and C4 grasses become the growth forms with the fastest velocities (@fig-FastestGF2).
+### Fastest changing phytoclimate.
+
+When comparing the velocity between phytoclimates in each cell (i.e., suitability for the avg species in growth forms), Climbers (Clim) were the group that showed, in most cases, the fastest speeds for a grid (@fig-FastestGF1). If Climbers are removed from the analysis, C3 and C4 grasses become the growth forms with the fastest velocities (@fig-FastestGF2).
 
 
 ```{r}
@@ -166,9 +168,9 @@ levels(FastGF)[[1]]$label <- names(VelocityRast)
 ggplot(wrld_simpl2) + # add the vector of the world
   geom_spatraster(data = FastGF) + # Map the Displacement
 # Setup. plot for continuous raster
-  scale_fill_whitebox_d(palette = "muted",
-                        na.value = NA,
-                        name = "Growth Form") +
+  scale_fill_manual(values = rev(hcl.colors(14, palette = "RdYlBu", alpha = 0.7)),
+                    na.value = NA,
+                    name = "Growth Form") +
   new_scale_fill() + # clear fill set-up 
 # Plot the Ice extend
     geom_spatraster(data = Ice,
@@ -197,9 +199,9 @@ levels(FastGF)[[1]]$label <- names(VelocityRast)[-1]
 ggplot(wrld_simpl2) + # add the vector of the world
   geom_spatraster(data = FastGF) + # Map the Displacement
 # Setup. plot of continuous raster
-  scale_fill_whitebox_d(palette = "muted",
-                        na.value = NA,
-                        name = "Growth Form") +
+  scale_fill_manual(values = rev(hcl.colors(14, palette = "RdYlBu", alpha = 0.7))[-1],
+                    na.value = NA,
+                    name = "Growth Form") +
     new_scale_fill() + # clear fill set-up 
 # Plot the Ice extend
     geom_spatraster(data = Ice,
@@ -213,11 +215,11 @@ ggplot(wrld_simpl2) + # add the vector of the world
 
 ## Maping the displacement of phytoclimate velocity vectors. 
 
-A compound metric of change, that shows the **average rapidity** in the response across multiple variables is the **displacement** of velocity vectors (cf. [@ordonez_mapping_2016]). You can think of it as a metric of how fast would you need to move the keep the same environmental setup.
+A compound metric of change that shows the **average rapidity** in the response across multiple variables is the **displacement** of velocity vectors (cf. [@ordonez_mapping_2016]). It is a metric of how fast you would need to move the keep the same environmental setup.
 
-**NOTE:** *Could this be considered how fast would a given GF assemblage (defined by their suitability) need to move to in response to environmental changes?*
+**NOTE:** *Could this be considered as to how fast a given phytoclimate assemblage (defined by its suitability) must move in response to environmental changes?*
 
-Using the phytoclimate velocity vectors, the displacement of these is estimated (@fig-MapDisplacement) using the suitability composition for all GF in a location.
+Using the phytoclimate velocity vectors, these displacement is estimated (@fig-MapDisplacement) using the suitability composition for all phytoclimates in a location.
 
 ```{r}
 #| label: fig-MapDisplacement
@@ -249,14 +251,80 @@ breaks = -3:3, # Legend breaks
   labs(title = "Phytoclimate displacement.")
 ```
 
-This map shows again that the displacement of Phytoclimate velocity vectors (@fig-MapDisplacement) was the fastest in most of the northern hemisphere, particularly those areas covered by ice sheets during the LGM ([the Cordillera, Laurentide, Innuitian, Greenland, Barents-Kara, Fennoscandia and British-Irish Ice Sheets](https://en.wikipedia.org/wiki/Last_Glacial_Maximum); see [@ehlers_quaternary_2011]).
+This map shows again that the displacement of phytoclimate velocity vectors (@fig-MapDisplacement) was the fastest in most of the northern hemisphere, particularly those areas covered by ice sheets during the LGM ([the Cordillera, Laurentide, Innuitian, Greenland, Barents-Kara, Fennoscandia and British-Irish Ice Sheets](https://en.wikipedia.org/wiki/Last_Glacial_Maximum); see [@ehlers_quaternary_2011]).
 
-Is also relevant to consider the balance between the **average** and **variability** in the rapidity of velocity vectors (@fig-DivAvgVsSD).
+### Sensitivity of displacement estimates.
+
+The displacement of phytoclimates showed the highest sensitivity in most evaluated cells to the speed of drought-deciduous shrubs (ShDdry)  (@fig-Sensitivity). This sensitivity was estimated as the absolute difference between displacement estimate with all phytoclimates and the estimation after removing a given phytoclimate. 
+
+A second group of phytoclimates with a strong influence on displacement estimates (@fig-Sensitivity) were Cold-deciduous trees (TDcold), Needle-leaf trees (TN), Evergreen trees (TE), and Drought-deciduous trees (TDdry). These were the most influential phytoclimates in a similar number of cells.
+
+```{r}
+#| label: fig-Sensitivity
+#| fig-align: center
+#| fig-height: 10
+#| fig-cap: Phytoclimate that has the most considerable influence of the displacement estimate for a given cell (A) and the number of cells for which a given phytoclimate has the largest influence (B). Effect estimated as the absolute deviation between displacement estimate with all phytoclimates and the estimation after removing a given phytoclimate (i.e., GF). 
+#| echo: FALSE
+
+# Estimate the Difference between the displacement estimate using all GF and removing one GF at a time
+SensitivityRastList <- lapply(1:dim(VelocityRast)[3],
+                          function(i){
+                            log10(abs(10^mean(log10(VelocityRast[[-i]])) - Displacement))
+                            })
+SensitivityRast <- do.call("c",SensitivityRastList)
+names(SensitivityRast) <- names(VelocityRast)
+
+# Define the GF with the largest influence
+GFInflu <- app(SensitivityRast,
+               function(x){
+                 ifelse(is.na(x[1]),NA,
+                        ifelse(length(unique(x))==1, 0,
+                               order(x,decreasing = T)[1]))
+               })
+GFInflu <- as.factor(GFInflu)
+levels(GFInflu)[[1]]$label <- c("All equal",names(VelocityRast))
+
+# Plot the Raster
+RAst <- ggplot(wrld_simpl2) + # add the vector of the world
+  geom_spatraster(data = GFInflu) + # Map the Displacement
+# Setup. plot of continuous raster
+  scale_fill_manual(values = c("darkgrey",rev(hcl.colors(14, palette = "RdYlBu", alpha = 0.7))),
+                    na.value = NA,
+                    name = "Growth Form") +
+  new_scale_fill() + # clear fill set-up 
+# Plot the Ice extend
+  geom_spatraster(data = Ice,
+                  show.legend = FALSE) +
+  scale_fill_gradientn(colours = grey(0.4,alpha=0.5), # Colour as grey
+                       na.value = NA # Do not plot NAs
+                       ) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "Phytoclimate with the largest influence on the displacement estimate") # Fig title
+
+# Make a frequency bar plot
+a <- table(values(GFInflu))
+a <- data.frame(GF = levels(GFInflu)[[1]][,2],
+                Freq = as.numeric(a))
+BarplotPlt <- ggplot(a,   aes(x=GF,
+                y=Freq,fill=GF)) +
+  geom_bar(stat="identity") +
+  scale_fill_manual(values =  c("darkgrey",rev(hcl.colors(14, palette = "RdYlBu", alpha = 0.7))))
+  
+# Plot both the map and 
+ggpubr::ggarrange(RAst, BarplotPlt,
+             nrow = 2,
+             labels = c("A", "B"))  
+```
+
+### Displacement: Mean vs Variability.
+
+It is also relevant to consider the balance between the **average** and **variability** in the rapidity of velocity vectors (@fig-DivAvgVsSD). These show that for most areas, there is an overall consistency in the velocity of phytoclimates (for most cells, the variability is low (median variability ~```r round(median(app(VelocityRast,sd,na.rm=T)[],na.rm=T),2)```km/100yrs), a value that is comparable to the median velocity of phytoclimates (~```r round(median(Displacement[],na.rm=T),2)```km/100yrs).
 
 ```{r}
 #| label: fig-DivAvgVsSD
-#| fig-cap: Match between displacement Avg and displacement variability.
+#| fig-cap: Match between displacement Avg and displacement variability in space (A) and in a 2D-histogram (B). 
 #| fig-align: center
+#| fig-height: 10
 #| echo: false
 
 # Functions for 2D colors
@@ -274,48 +342,73 @@ interpolate <- function(i){
   }
 }
 
-# Scale Displacement - Avg
-DisplaceAvg <- app(log10(Displacement),function(x){scales::rescale(x,from = as.numeric(minmax(log10(Displacement))))})
-# Scale Displacement - sd
-DisplaceSD <- app(VelocityRast,sd,na.rm=T)+1
-DisplaceSD <- app(log10(DisplaceSD),function(x){scales::rescale(x,from = c(0,as.numeric(minmax(log10(DisplaceSD)))[2]))})
+# Define the color space -legend
+brakes <- 10
+X <- rast(matrix(rep(seq(0,1,length.out=brakes),
+                     each=brakes),
+                 ncol=brakes))
 
+Y <- rast(matrix(rep(seq(0,1,length.out=brakes),
+                     each=brakes),
+                 ncol=brakes,
+                 byrow=T))
 # Merge into a single SpatRaster
-Displace2D <- c(DisplaceAvg,
-                DisplaceSD)
-# Turn values into RGB 
-Displace2DRGB <- app(Displace2D,
-                     interpolate)
+XY <- c(X,Y)
+# Turn into an RGB
+XY <- app(XY,interpolate)
+
+# Match the values to the color space 
+
+# Scale Displacement - Avg
+LogDisp <- app(log10(VelocityRast),mean,na.rm=T)
+DisplaceAvg <- app(LogDisp,
+                   function(x){
+                     scales::rescale(x,
+                                     from = as.numeric(minmax(LogDisp)),
+                                     to = c(0,brakes))})
+# Scale Displacement - sd
+LogDispSD <- log10(app(VelocityRast,sd,na.rm=T)+1)
+DisplaceSD <- app(LogDispSD,
+                  function(x){
+                    scales::rescale(x,
+                                    from = as.numeric(minmax(LogDispSD)),
+                                    to = c(0,brakes))})
+# Merge into a single SpatRaster
+Disp.Av.SD <- c(DisplaceAvg,DisplaceSD)
+names(Disp.Av.SD) <- c("x", "y")
+
+# Get RGB colors for the average vs SD combination
+XY2 <- terra::extract(XY,
+                      values(Disp.Av.SD))
+
+# Make the RGB map
+Displace2DRGB <- rast(nrows=dim(DisplaceAvg)[1],
+                      ncols=dim(DisplaceAvg)[2],
+                      nlyrs=3,
+                      crs = crs(DisplaceAvg),
+                      extent = ext(DisplaceAvg))
+Displace2DRGB <- setValues(Displace2DRGB, XY2)
+
 
 # Plot the RGB
 RGBPlot <- ggplot(wrld_simpl2) +
   geom_spatraster_rgb(data = Displace2DRGB,
-                      max_col_value =1,
+                      max_col_value =1
                       ) +
   new_scale_fill() + # clear fill set-up 
-# Plot the Ice extend
-    geom_spatraster(data = Ice,
+  # Plot the Ice extend
+  geom_spatraster(data = Ice,
                   show.legend = FALSE) +
   scale_fill_gradientn(colours = grey(0.4,alpha=0.5), # Colour as grey
                        na.value = NA # Do not plot NAs
-                       ) +
+  ) +
   geom_spatvector(fill = NA) + # Add the vector of the world
   labs(title = "Phytoclimate displacement Avg Vs displacement SD") # Fig title
 
-# Legend
-X <- rast(matrix(rep(seq(0,1,length.out=10),
-                     each=10),
-                 ncol=10))
-Y <- rast(matrix(rep(seq(0,1,length.out=10),
-                     each=10),
-                 ncol=10,
-                 byrow=T))
-XY <- c(X,Y)
-XY <- app(XY,interpolate)
+# Plot Legend 
 leg2d <- ggplot() +
   geom_spatraster_rgb(data = XY,
-                      max_col_value =1
-                      ) +
+                      max_col_value =1) +
   scale_x_continuous(name = "Displacement - Avg",
                      breaks = seq(0,10,length.out=7),
                      labels = 10^(-3:3),
@@ -326,13 +419,15 @@ leg2d <- ggplot() +
   theme(axis.text = element_text(size=6),
         axis.title = element_text(size=6,face="bold"),
         panel.background = element_rect(fill='transparent'),
+        panel.border = element_rect(fill='transparent'),
         plot.background = element_rect(fill='transparent'))
-# Turn the Legend into a Grob
+
+# Turn the Legend into a Grob [grid graphical object] to be inserted in a ggplot
 g <- ggplotGrob(leg2d)
 
 
 # Add the legend as a insert to the RGB plot
-RGBPlot +
+Map2D <- RGBPlot +
   annotation_custom(
     grob = g,
     xmin = -16800000,
@@ -340,6 +435,33 @@ RGBPlot +
     ymin = -8815273,
     ymax = -50573
   )
+
+
+# Bin size control + color palette
+a<- values(Disp.Av.SD,
+              na.rm=T,
+              dataframe=T)
+a <- a[a[,2]!=0,]
+hist2D <- ggplot(round(a,1)) +
+  aes(x=x, y=y) +
+  geom_hex(bins = 50) +
+  scale_fill_continuous(type = "viridis",
+                        trans = "log10",
+                        na.value = NA,#Do not map NA
+                        name = expression(atop('Frequency',
+                                          'log'[10]*"(count)")
+                          )) +
+  scale_x_continuous(name = "Displacement - Avg",
+                     breaks = seq(0,brakes,length.out=7),
+                     labels = 10^(-3:3),
+                     guide = guide_axis(n.dodge = 2)) +
+  scale_y_continuous(name = "Displacement - SD",
+                     breaks = seq(0,brakes,length.out=4),
+                     labels = 10^(0:3))
+# plot the 2D-map and 2d-Histogram 
+ggpubr::ggarrange(Map2D, hist2D,
+             nrow = 2,
+             labels = c("A", "B"))  
 
 ```
 
