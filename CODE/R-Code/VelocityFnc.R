@@ -104,8 +104,9 @@ SpatHetFnc <- function(RastIn){
 #-------------------------------------------------------------------------------
 ## BearingFnc: Function to estimate the spatial gradients bearing using a
 ##             using the maximum average technique [Burrough & McDonnell 1998].
-##             THe angle is define in a poleward direction, so 90-D point to the
-##             pole.
+##             The angle is define in a poleward direction, so 90-D point to the
+##             pole. Also 361 means that there is no spatial gradient (no change
+##            in the x or y direction.)
 ####  The Raster input [RastIn],
 BearingFnc <- function(RastIn){
   # Check for right dimensionality
@@ -151,29 +152,20 @@ BearingFnc <- function(RastIn){
   NrthSthChng<- mosaic(NrthSthChng1,NrthSthChng2)
 # Estimating the bearing of the velocity vector based on initial conditions
   BearingRast <- atan2(x=EstWestChng, y= NrthSthChng)*(180/pi)
-# make the bearing a value between 0 and 360
-  BearingRast1 <- app(BearingRast,
-                     fun=function(x){ifelse(x<0,
-                                            360+x,
-                                            x)})
-  # Turn according to the temporal trend
-  BearingRast2 <- app(c(BearingRast1,
+# Turn according to the temporal trend  
+  BearingRast1 <- app(c(BearingRast,
                         TempHetRast),
                       function(x){
                         ifelse(is.na(x[1]),
                                NA,
-                               ifelse(c(x[2]<0 & x[1] <= 180),
-                                      x[1] + 180,
-                                      ifelse(c(x[2]<0 & x[1]>180),
-                                             x[1] - 180,
-                                             x[1])))
-                      })
-  # Turn so north is 0
-#  BearingRast3 <- app(BearingRast2,
-#                      fun=function(x){
-#                        ifelse(x>=90,
-#                               x-90,
-#                               360-x)})
+                               ifelse(c(x[2]<0),
+                                      -x[1],x[1]))})    
+# make the bearing a value between 0 and 360
+  BearingRast2 <- app(BearingRast1,
+                     fun=function(x){ifelse(x<0,
+                                            360+x,
+                                            x)})
+  BearingRast2[][which(EstWestChng[]==0 & NrthSthChng[]==0)]<-361
   return(BearingRast2)
 }
 #-------------------------------------------------------------------------------

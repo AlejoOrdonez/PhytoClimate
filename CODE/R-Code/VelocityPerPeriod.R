@@ -37,7 +37,7 @@ MethodsUse <- c("AbsDif", "Anomaly1", "Anomaly2", "ARM", "lm")
 for(MethodUse in MethodsUse){
 #(MethodUse <- "AbsDif")
 # I will loop over all periods 
-  for(TimePer in names(Dates)){#(TimePer<- names(Dates)[2])
+  for(TimePer in names(Dates)){#(TimePer<- names(Dates)[1])
     TimePerUse <- Dates[[TimePer]] # Extract the dates
     TimePerUse <- which(seq(-21,0,0.5)%in%TimePerUse) # Turn dates into points in the chronology 
     for(GF.Use in NamesDtFrm$Acro2){#(GF.Use <- NamesDtFrm$Acro2[1])
