@@ -162,13 +162,21 @@ BearingFnc <- function(RastIn){
                                NA,
                                ifelse(c(x[2]<0),
                                       -x[1],x[1]))})    
-# make the bearing a value between 0 and 360
+  # make the bearing a value between 0 and 360
   BearingRast2 <- app(BearingRast1,
-                     fun=function(x){ifelse(x<0,
-                                            360+x,
-                                            x)})
-  BearingRast2[][which(EstWestChng[]==0 & NrthSthChng[]==0)]<-361
-  return(BearingRast2)
+                      fun=function(x){ifelse(x<0,
+                                             360+x,
+                                             x)})
+  # Turn these so that 0 bearing is Poleward
+  BearingRast2a <- BearingRast2-90
+  BearingRast2a <- app(BearingRast2a,
+                       fun=function(x){ifelse(x<=0,
+                                              360+x,
+                                              x)})
+  # Make the Bearing of areas that do not change 361DD
+  BearingRast2a[][which(EstWestChng[]==0 & NrthSthChng[]==0)]<-361
+  # Return the Bearing
+  return(BearingRast2a)
 }
 #-------------------------------------------------------------------------------
 ## VelocityFnc: Function to estimate the velocity of a surface as the ratio 
