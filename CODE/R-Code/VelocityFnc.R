@@ -115,7 +115,9 @@ BearingFnc <- function(RastIn){
   } #RastIn <- MapsPer.GF
   # Time integrated bearing The direction of change would change if the temporal tendency is to a reduction in the variable of interest
   # Load the temporal trend  
-  TempHetRast <- RastIn[[dim(RastIn)[3]]]-RastIn[[1]]
+  ### Positive value means that the past is more suitable than the present so the direction is out of the cell
+  ### Negative value means that the present is more suitable than the past so the direction is into of the cell
+  TempHetRast <- RastIn[[1]] - RastIn[[dim(RastIn)[3]]]
   # Define the Baseline raster
   RastUse <- RastIn[[1]]#RastUse <- mean(MapsPer.GF)#
   # West-east gradients
