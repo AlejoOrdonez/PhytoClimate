@@ -105,13 +105,13 @@ $$V_{l} = \frac{\text{d}c/\text{d}t}{\text{d}c/\text{d}x}$$
 
 Where $\frac{\text{d}c}{\text{d}t}$ is the ratio between the projected change per unit time, and $\frac{\text{d}c}{\text{d}x}$ is the local spatial gradient in the variable of interest.
 
-In this context, velocity vectors for phytoclimates measure the **rapidity** and **direction** of a change in the suitability of environmental conditions for the species in a given growth form. You can think of this as a measurement of how *fast* would the "suitability" surface of an average species in a given growth form has/will move in space (like in [@serra-diaz_bioclimatic_2014]).
+In this context, velocity vectors for phytoclimates measure the rapidity (**speed**) and direction (**bearing**) of a change in the suitability of environmental conditions for the species in a given growth form. You can think of this as a measurement of how *fast* , and in which *direction* would the "suitability" surface of an average species in a given growth form has/will move in space (like in [@serra-diaz_bioclimatic_2014]).
 
 This metric answer the question, *"How fast to move to keep the same 'suitability'"*, assuming that the movement is from an area of low to a place of higher suitability between two times points. A 10km/year value means that to compensate for the change in 1yr, you would need to move to a location 10km away. I apply this approach to each phytoclimates suitability map rather than a single climate variable.
 
 The approach used to estimate the velocity of phytoclimatic change (that is, the magnitude and direction of the change vector) flows the implementation in [@ordonez_combined_2014] and [@ordonez_mapping_2016].
 
-## Maping the velocity of phytoclimatic change.
+## Maping the speed of phytoclimatic change.
 
 The magnitude of Phytoclimate velocity vectors (i.e., speed; @fig-VelocitySummary) was the fastest in most of the northern hemisphere, particularly those areas covered by ice sheets during the LGM ([the Cordillera, Laurentide, Innuitian, Greenland, Barents-Kara, Fennoscandia and British-Irish Ice Sheets](https://en.wikipedia.org/wiki/Last_Glacial_Maximum); see [@ehlers_quaternary_2011]). *most likely due to Large temporal changes in suitability*.
 
@@ -224,7 +224,7 @@ Using the phytoclimate velocity vectors, these displacement is estimated (@fig-M
 ```{r}
 #| label: fig-MapDisplacement
 #| fig-align: center
-#| fig-cap: Rate at which phytoclimates would have moved between the LGM to the Present day (Displacement km/100yrs).
+#| fig-cap: Rate at which phytoclimates would have moved between the LGM to the Present day. Displacement is measured as the mean speed of phytoclimate velocity vectors.
 #| echo: false
 
 #Load the Displacement values
@@ -465,5 +465,345 @@ ggpubr::ggarrange(Map2D, hist2D,
 
 ```
 
+## Maping the bearing of phytoclimatic vectors.
+
+A second dimension of velocity vectors is their direction, which is *the angle measured counter-clockwise from north*. Here I adjusted these so they represent poleward/equatorward directions (0-degrees is pole ward, 180 degree is equatorward). in this way, bearing measurement show show the movement from the tropics to temperate to polar areas. 
+
+For most phytoclimates, vectors show a *Poleward* direction (@fig-Bearing), aligned with the idea of a colonization of post-glaciated areas. However, for the large areas covered by the [the Cordillera, Laurentide, Innuitian, Greenland, Barents-Kara, Fennoscandia and British-Irish Ice Sheets](https://en.wikipedia.org/wiki/Last_Glacial_Maximum); see [@ehlers_quaternary_2011]) is not possible to estimate the bearing due to homogeneous/flat spatial gradients.
 
 
+```{r}
+#| label: fig-Bearing
+#| fig-align: center
+#| fig-cap: Overall bearing of phytoclimate vectors between the LGM to the Present day.
+#| echo: false
+
+#Load the bearings
+BearingRast <- do.call("c",
+                        lapply(dir("./Data/LGM/Velocity/Bearing",
+                                   pattern ="All_",
+                                   full.names = TRUE),
+                               function(x){y <- app(rast(x),
+                                                    function(x){ifelse(is.na(x),NA,
+                                                    findInterval(x,c(0,seq(22.5,337.5,45),360,361)))})
+                                           y <- app(y,function(x){ifelse(is.na(x),NA,
+                                                                    ifelse(x%in%c(9,10),1,x))})
+                                           y <- as.factor(y)
+                                           levels(y)[[1]][,2] <- c("Pol","Pole-West",
+                                                                   "West","Equ-West",
+                                                                   "Equ","Equ-East",
+                                                                   "East","Pole-East",
+                                                                   "NoChng")
+                                           return(y)}))
+
+names(BearingRast) <- names(VelocityRast)
+# Plot the the Bearing of Velocities 
+ggplot() + # add the vector of the world
+  geom_spatraster(data = BearingRast) + # Map the Displacement
+# Setup. plot of a continuous raster
+  scale_fill_manual(values = c(rev(hcl.colors(8, palette = "RdYlBu", alpha = 0.7)),"darkgrey"), #colour scheme 
+                    na.value = NA, #Do not map NA
+                        name = "Bearing" # Legend Title
+                        ) +
+  facet_wrap(~lyr) +
+  labs(title = "Bearing Phytoclimate Velocities") # Fig title
+
+# Sort the directions by number of cells with a given bearing
+#lapply(1:14,
+#       function(x){
+#         levels(BearingRast)[[x]][,2][order(table(values(BearingRast[[x]],na.rm=T)))]
+#       })
+```
+
+## Maping the divergence of phytoclimate velocity vectors.
+
+Differences in the bearing of phytoclimate velocity vectors were small overall as shown by the overall low median angle between phytoclimate velocity vectors (i.e., divergence; (@fig-Divergence)). In those areas where bearings did nit converge, there is a general trend towards orthogonal bearings (e.g., Cerrado region, Northern and central Africa, Borneo, Eastern Australia; see (@fig-Divergence)), indicating a possible dissociation in the suitability fo different phytoclimates.
+
+
+```{r}
+#| label: fig-Divergence
+#| fig-align: center
+#| fig-cap: Concordance in the bearing angle of phytoclimate velocity vectors (divergence) between the LGM to the Present day. Divergence is measured as the median angle between phytoclimate velocity vectors.
+#| echo: false
+
+# Load the bearings
+BearingRast <- do.call("c",
+                        lapply(dir("./Data/LGM/Velocity/Bearing",
+                                   pattern ="All_",
+                                   full.names = TRUE),
+                               function(x){rast(x)}))
+# Estimate the Divergence as the median difference between bearings
+Divergence <- app(BearingRast,
+                  function(x){
+                    if(is.na(x[1])){out<-NA
+                    } else{x <- x[x!=361]
+                           #x <- round(x,1) 
+                           y <- dist(na.omit(x))
+                           y[y>180] <- 360 - y[y>180]
+                           out <- median(y) }
+                    return((out))
+                    })
+
+# Plot the displacement
+## ggplot
+ggplot(wrld_simpl2) + # add the vector of the world
+  geom_spatraster(data = Divergence) + # Map the Displacement
+# Setup. plot of continuous raster
+  scale_fill_whitebox_c(palette = "muted", #colour scheme 
+                        na.value = NA,#Do not map NA
+                        name = "Divergence\n[Degrees]" # Legend Title
+                        ) +
+  new_scale_fill() + # clear fill set-up 
+# Plot the Ice extend
+    geom_spatraster(data = Ice,
+                  show.legend = FALSE) +
+  scale_fill_gradientn(colours = grey(0.4,alpha=0.5), # Colour as grey
+                       na.value = NA # Do not plot NAs
+                       ) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "Phytoclimate divergence.")
+```
+
+### Bearing Mean vs variability
+
+To further test the idea that bearings of phytoclimates show similar directions, I plot the mean vs the variability in the angles between pairwise phytoclimatic velocity vectors. These show that for some cells there is a large variability in the match in directions between vectors (@fig-DiverAvgVSVar A), for the vast majority of locations divergence is low (>60 degrees), and with a low variability (>225. degrees) (@fig-DiverAvgVSVar B).
+
+```{r}
+#| label: fig-DiverAvgVSVar
+#| fig-cap: Match between the Divergecne Avg and displacement variability in space (A) and in a 2D-histogram (B). 
+#| fig-align: center
+#| fig-height: 10
+#| echo: false
+
+# Scale Displacement - Avg
+DivergenceAvg <- app(Divergence,
+                   function(x){
+                     scales::rescale(x,
+                                     from = as.numeric(minmax(Divergence)),
+                                     to = c(0,brakes))})
+# Estimate Divergence Sd
+DivergenceSD <- app(BearingRast,
+                  function(x){
+                    if(is.na(x[1])){out<-NA
+                    } else{x <- x[x!=361]
+                           #x <- round(x,1) 
+                           y <- dist(na.omit(x))
+                           y[y>180] <- 360 - y[y>180]
+                           out <- sd(y) }
+                    return((out))
+                    })
+# Scale Displacement - sd
+DivergenceSD <- app(DivergenceSD,
+                  function(x){
+                    scales::rescale(x,
+                                    from = as.numeric(minmax(DivergenceSD)),
+                                    to = c(0,brakes))})
+# Merge into a single SpatRaster
+Div.Av.SD <- c(DivergenceAvg,DivergenceSD)
+names(Div.Av.SD) <- c("x", "y")
+
+# Get RGB colors for the average vs SD combination
+XY2 <- terra::extract(XY,
+                      values(Div.Av.SD))
+
+# Make the RGB map
+Divergence2DRGB <- rast(nrows=dim(Div.Av.SD)[1],
+                      ncols=dim(Div.Av.SD)[2],
+                      nlyrs=3,
+                      crs = crs(Div.Av.SD),
+                      extent = ext(Div.Av.SD))
+Divergence2DRGB <- setValues(Divergence2DRGB, XY2)
+
+# Plot the RGB
+RGBPlot <- ggplot(wrld_simpl2) +
+  geom_spatraster_rgb(data = Divergence2DRGB,
+                      max_col_value =1
+                      ) +
+  new_scale_fill() + # clear fill set-up 
+  # Plot the Ice extend
+  geom_spatraster(data = Ice,
+                  show.legend = FALSE) +
+  scale_fill_gradientn(colours = grey(0.4,alpha=0.5), # Colour as grey
+                       na.value = NA # Do not plot NAs
+  ) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "Phytoclimate divergence Avg Vs divergence SD") # Fig title
+
+# Plot Legend 
+leg2d <- ggplot() +
+  geom_spatraster_rgb(data = XY,
+                      max_col_value =1) +
+  scale_x_continuous(name = "Divergence - Avg",
+                     breaks = seq(0,10,length.out=4),
+                     labels = seq(0,180,60),
+                     guide = guide_axis(n.dodge = 2)) +
+  scale_y_continuous(name = "Divergence - SD",
+                     breaks = seq(0,10,length.out=5),
+                     labels = seq(0,90,by=22.5)) +
+  theme(axis.text = element_text(size=6),
+        axis.title = element_text(size=6,face="bold"),
+        panel.background = element_rect(fill='transparent'),
+        panel.border = element_rect(fill='transparent'),
+        plot.background = element_rect(fill='transparent'))
+
+# Turn the Legend into a Grob [grid graphical object] to be inserted in a ggplot
+g <- ggplotGrob(leg2d)
+
+# Add the legend as a insert to the RGB plot
+Map2D <- RGBPlot +
+  annotation_custom(
+    grob = g,
+    xmin = -16800000,
+    xmax = -8253891,
+    ymin = -8815273,
+    ymax = -50573
+  )
+
+
+# Bin size control + color palette
+a<- values(Div.Av.SD,
+              na.rm=T,
+              dataframe=T)
+a <- a[a[,2]!=0,]
+hist2D <- ggplot(round(a,1)) +
+  aes(x=x, y=y) +
+  geom_hex(bins = 50) +
+  scale_fill_continuous(type = "viridis",
+                        trans = "log10",
+                        na.value = NA,#Do not map NA
+                        name = expression(atop('Frequency',
+                                          'log'[10]*"(count)")
+                          )) +
+  scale_x_continuous(name = "Divergence - Avg",
+                     breaks = seq(0,10,length.out=4),
+                     labels = seq(0,180,60),
+                     guide = guide_axis(n.dodge = 2)) +
+  scale_y_continuous(name = "Divergence - SD",
+                     breaks = seq(0,10,length.out=5),
+                     labels = seq(0,90,by=22.5))
+# plot the 2D-map and 2d-Histogram 
+ggpubr::ggarrange(Map2D, hist2D,
+             nrow = 2,
+             labels = c("A", "B"))  
+
+
+
+```
+
+## Displacement vs Divergence
+
+
+```{r}
+#| label: fig-DisVSDiv
+#| fig-cap: DIvergecne Vs Displacement
+#| fig-align: center
+#| fig-height: 10
+#| echo: false
+
+# Scale Displacement - Avg
+DisplaceAvg <- app(log10(Displacement),
+                   function(x){
+                     scales::rescale(x,
+                                     from = as.numeric(minmax(log10(Displacement))),
+                                     to = c(0,brakes))})
+# Scale divergence - sd
+DivergenceMed <- app(Divergence,
+                  function(x){
+                    scales::rescale(x,
+                                    from = as.numeric(minmax(Divergence)),
+                                    to = c(0,brakes))})
+# Merge into a single SpatRaster
+Disp.Dive <- c(DisplaceAvg,DivergenceMed)
+names(Disp.Dive) <- c("x", "y")
+
+# Get RGB colors for the average vs SD combination
+XY2 <- terra::extract(XY,
+                      values(Disp.Dive))
+
+# Make the RGB map
+DisDiv2DRGB <- rast(nrows=dim(DisplaceAvg)[1],
+                      ncols=dim(DisplaceAvg)[2],
+                      nlyrs=3,
+                      crs = crs(DisplaceAvg),
+                      extent = ext(DisplaceAvg))
+DisDiv2DRGB <- setValues(DisDiv2DRGB, XY2)
+# Plot the RGB
+RGBPlot <- ggplot(wrld_simpl2) +
+  geom_spatraster_rgb(data = Displace2DRGB,
+                      max_col_value =1
+                      ) +
+  new_scale_fill() + # clear fill set-up 
+  # Plot the Ice extend
+  geom_spatraster(data = Ice,
+                  show.legend = FALSE) +
+  scale_fill_gradientn(colours = grey(0.4,alpha=0.5), # Colour as grey
+                       na.value = NA # Do not plot NAs
+  ) +
+  geom_spatvector(fill = NA) + # Add the vector of the world
+  labs(title = "Phytoclimate displacement Vs divergence") # Fig title
+
+# Plot Legend 
+leg2d <- ggplot() +
+  geom_spatraster_rgb(data = XY,
+                      max_col_value =1) +
+  scale_x_continuous(name = "Displacement [km/100yrs]",
+                     breaks = seq(0,10,length.out=7),
+                     labels = 10^(-3:3),
+                     guide = guide_axis(n.dodge = 2)) +
+  scale_y_continuous(name = "Divergence [Degrees]",
+                     breaks = seq(0,10,length.out=4),
+                     labels = seq(0,180,length.out=4)) +
+  theme(axis.text = element_text(size=6),
+        axis.title = element_text(size=6,face="bold"),
+        panel.background = element_rect(fill='transparent'),
+        panel.border = element_rect(fill='transparent'),
+        plot.background = element_rect(fill='transparent'))
+
+# Turn the Legend into a Grob [grid graphical object] to be inserted in a ggplot
+g <- ggplotGrob(leg2d)
+
+
+# Add the legend as a insert to the RGB plot
+Map2D <- RGBPlot +
+  annotation_custom(
+    grob = g,
+    xmin = -16800000,
+    xmax = -8253891,
+    ymin = -8815273,
+    ymax = -50573
+  )
+
+
+# Bin size control + color palette
+a<- values(Disp.Dive,
+              na.rm=T,
+              dataframe=T)
+a <- a[a[,2]!=0,]
+hist2D <- ggplot(round(a,1)) +
+  aes(x=x, y=y) +
+  geom_hex(bins = 50) +
+  scale_fill_continuous(type = "viridis",
+                        trans = "log10",
+                        na.value = NA,#Do not map NA
+                        name = expression(atop('Frequency',
+                                          'log'[10]*"(count)")
+                          )) +
+  scale_x_continuous(name = "Displacement [km/100yrs]",
+                     breaks = seq(0,10,length.out=7),
+                     labels = 10^(-3:3),
+                     guide = guide_axis(n.dodge = 2)) +
+  scale_y_continuous(name = "Divergence [Degrees]",
+                     breaks = seq(0,10,length.out=4),
+                     labels = seq(0,180,length.out=4))
+# plot the 2D-map and 2d-Histogram 
+ggpubr::ggarrange(Map2D, hist2D,
+             nrow = 2,
+             labels = c("A", "B"))  
+#cor.test(values(log10(Displacement)),
+#         values(round(Divergence)),
+#         use =  "pairwise.complete.obs")
+
+```
+
+
+## References
