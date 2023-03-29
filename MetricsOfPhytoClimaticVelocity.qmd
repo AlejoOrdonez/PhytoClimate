@@ -551,7 +551,9 @@ ggplot(wrld_simpl2) + # add the vector of the world
 # Setup. plot of continuous raster
   scale_fill_whitebox_c(palette = "muted", #colour scheme 
                         na.value = NA,#Do not map NA
-                        name = "Divergence\n[Degrees]" # Legend Title
+                        name = "Divergence\n[Degrees]", # Legend Title
+                        limits = c(0,180),
+                        breaks = seq(0,180,60)
                         ) +
   new_scale_fill() + # clear fill set-up 
 # Plot the Ice extend
@@ -692,6 +694,9 @@ ggpubr::ggarrange(Map2D, hist2D,
 
 ## Displacement vs Divergence
 
+When merging the displacement and divergence metrics into a single visualization (@fig-DisVSDiv), Most cells have divergences of ~1km/100yrs and low overall divergence (<60 degrees difference between vector bearings).
+
+However, we can distinguish areas where the rate and directional of movement of acclimate velocity vectors is on the top end with speeds ~1000km/100yrs and most vectors going in opposite directions (180degree of divergence) (blue colours in (@fig-DisVSDiv)). These areas correspond to Boreal areas, North American Central plains, the Saharan region, the Arabian peninsula, and northwestern India. 
 
 ```{r}
 #| label: fig-DisVSDiv
