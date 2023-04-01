@@ -7,11 +7,11 @@ source("./CODE/R-Code/VelocityFnc.R")
 #setwd("/Users/alejandroordonez/Dropbox/Other Papers in progress/[Conradi] Phytoclimate  Velocity/PhytoClimate")
 ## Load the Data
 ### Load growth form data [22kaBP to present on 500Yrs intervals] last one is 2070 second to last is 1950
-pml <- readRDS("./Data/RawData/LGM/gf_suitab_matrices.rds")
+#pml <- readRDS("./Data/RawData/LGM/gf_suitab_matrices.rds")
 ### Coordinates of the grid cells
-xy <- readRDS("./Data/RawData/LGM/cell_coordinates.rds")
+#xy <- readRDS("./Data/RawData/LGM/cell_coordinates.rds")
 ### Raster template
-cr.ea <- rast("./Data/RawData/LGM/raster_template.tif")
+#cr.ea <- rast("./Data/RawData/LGM/raster_template.tif")
 
 ### Matrix of names
 NamesDtFrm <- data.frame(Acro1 = c("TE", "TDdry", "TDcold", "TN", "ShE", "ShDdry", "ShDcold","H","Geo", "Thero", "GC3", "GC4", "Suc", "Clim"),
@@ -159,3 +159,82 @@ for(TimePer in names(Dates)){#(TimePer<- names(Dates)[2])
                                   "_Divergence.tif"),
                 overwrite = TRUE)
 }    
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+# Velocity sequential Periods only Anomaly2 methodcan be used 
+# Load the Suitability maps for all times for each GF
+SuitMap <- lapply(dir("./Data/LGM/LatePleistocene/",full.names = T),
+                  function(x){
+                    rast(x)
+                  })
+names(SuitMap) <- NamesDtFrm$Acro2
+
+## Test get one GF
+
+for(GF.Use in NamesDtFrm$Acro2){#(GF.Use <- NamesDtFrm$Acro2[1])
+# get teh suitability surface for a selected GF
+  SuitMapTmp <- SuitMap[[GF.Use]]
+    
+## **First**: Generate a SpatRaster that estimates the temporal trend for each cell using the app function from terra
+# IMPORTANT: here the approach can be changed - for ease I use a Median of all 500Yrs differences.
+  TempHetRast <- lapply(1:43,
+                     function(i){#(i<-1)
+                       TmpRst <- SuitMapTmp[[i:(i+1)]] 
+                     abs(TmpRst[[2]]-TmpRst[[1]])/5
+                   })
+  TempHetRast <- do.call("c",TempHetRast)
+# Save the Raster file
+  writeRaster(TempHetRast,
+              paste0("./Data/LGM/Velocity/TempChng_Anomaly2/SeqTim_",
+                     GF.Use,"_TempChng.tif"),
+              overwrite=TRUE)
+## **Second**: Estimate the spatial gradients magnitude using a using the maximum average technique [Burrough & McDonnell 1998].
+  SpaceHetRast <- lapply(1:43,
+                        function(i){#(i<-1)
+                          TmpRst <- SuitMapTmp[[i:(i+1)]]
+                          SpatHetFnc(TmpRst[[1]])
+                          })
+  SpaceHetRast <- do.call("c",SpaceHetRast)
+# Save the Raster file
+  writeRaster(SpaceHetRast,
+              paste0("./Data/LGM/Velocity/SpatHet/SeqTim_",
+                     GF.Use,"_SpatHet.tif"),
+              overwrite=TRUE)
+## **Third**: Estimate the spatial gradients direction using a using the maximum average technique [Burrough & McDonnell 1998].
+##            Here 90 degrees is poleward direction, so that 0 degrees is East in the north and West in the south
+  BearingRast <- lapply(1:43,
+                         function(i){#(i<-1)
+                           TmpRst <- SuitMapTmp[[i:(i+1)]]
+                           BearingFnc(TmpRst)
+                         })
+  BearingRast <- do.call("c",BearingRast)
+# Save the Raster file
+  writeRaster(BearingRast,
+              paste0("./Data/LGM/Velocity/Bearing/SeqTim_",
+                     GF.Use,"_Bearing.tif"),
+              overwrite=TRUE)
+## **Forth**: Estimate the velocity magnitude (i.e., speed) as the ratio between the temporal and spatial gradient.
+  Velocity <- lapply(1:43,
+                        function(i){#(i<-1)
+                          VelocityFnc (TempHetRast[[i]],
+                                       SpaceHetRast[[i]])
+                        })
+  Velocity <- do.call("c",Velocity)
+# Save the Raster file
+  writeRaster(Velocity,
+              paste0("./Data/LGM/Velocity/Velocity_Anomaly2/SeqTim_",
+                     GF.Use,"_Velocity.tif"),
+              overwrite=TRUE)
+print(GF.Use)
+}
+
+
+
+
+
+
+## **Fifth**: Merge all outputs into a single SpatRaster
+                     Out <- c(TempHetRast,SpaceHetRast,BearingRast,Velocity)
+                     names(Out) <- c("TempHet", "SpaceHet", "Bearing", "Velocity")
+                     return(Out)
+                     }
