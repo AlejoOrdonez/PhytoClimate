@@ -4,16 +4,21 @@ require(analogue)
 require(mgcv)
 require(maptools)
 require(terra)
-data(wrld_simpl)
-NorthAmeric <- vect(wrld_simpl)
-NorthAmeric2 <- terra::crop(NorthAmeric,
-                     ext(c(range(PollenTRees$long),range(PollenTRees$lat))))
 # Load the data
 PollenTRees <- read_csv("./Data/Pollen data/all_woody_counts_final_fullTS.csv")
-
 #Names of the variables
 names(PollenTRees)
 
+# Load Map and crop it
+data(wrld_simpl)
+NorthAmeric <- vect(wrld_simpl)
+NorthAmeric2 <- terra::crop(NorthAmeric,
+                            ext(c(range(PollenTRees$long),range(PollenTRees$lat))))
+
+
+# Load the dispokacement between time periods
+Displacement <- rast("./Data/LGM/Displacement/Displacement_Anomaly2/SeqTim_Displacement.tif")
+Displacement <- project(Displacement,"+proj=longlat +datum=WGS84")
 # used functions
 ## Turn counts/proportions into presence absence matrix
 PresAbsFnc <- function(x){ifelse(x==0,0,1)}
@@ -237,7 +242,19 @@ DistList <- lapply(PollenTReesList,
                             CummDis = c(0,cumsum(sapply(dim(Distcores)[1]:2,
                                                   function(x){Distcores[x-1,x]}))))
                                        })
+##------------------------------------------------------------------------------
+# CHECK FOR SITES with extreme changes
+# sort out Sites with the max cumulative dissimilarity
+order(sapply(DistList,
+             function(x){max(x[,'CummDis'])}))
+# Max dissimilarity
+PollenTReesList[[56]] # Long -130.096; Lat = 57.59498 --> Kinaskan lake (Yukon)
+PollenTReesList[[22]] # Long = -144.6583 Lat = 63.94 --> Healy Lake (Alaska)
+## NOTE: I will remove sites 56 and 22 from visualization below
+##------------------------------------------------------------------------------
 
+
+# plot the commutative dissimilarity for all sites in one plot
 plot.new()
 plot.window(xlim = c(-22,0),
             ylim = c(0,1.5))#round(max(sapply(DistList[-c(22,56)],
@@ -247,7 +264,7 @@ mtext(DistUse,side=3,outer=T,
       xpd=NA,
       cex = 2, font = 2,
       line=-5)
-for(i in c(1:length(DistList))[-c(22,56)]){
+for(i in c(1:length(DistList))[-c(22,56)]){# Note that sites 56 and 22 are removed as these have extreme dissimilarities
 x <- DistList[[i]]  
 points(x = x$Age,
      y = x$CummDis,
@@ -255,66 +272,75 @@ points(x = x$Age,
 }
 
 
-
-# Pot one core at a time
-for(i in c(1:length(DistList))[-c(22,56)]){#i<-1
+# Plot one core at a time
+# Note that sites 56 and 22 are removed as these have extreme dissimilarities
+for(i in c(1:length(DistList))[-c(22,56)]){#i<-1 
   x <- DistList[[i]]  # load the core info
-  
-  
-  
-  #Plot the Core Accumulative dissimilarity
+#Plot the Core Accumulative dissimilarity
   par(fig=c(0,1,0,1),new=F,
-      mar=c(3.1, 3.1, 2.1, 2.1))
+      mar=c(4, 4, 2.1, 4))
   plot(x = x$Age,
        y = x$CummDis,
        type = "b",
        pch=19,
        xlim = c(-22,0),
        ylim = c(0,1.5),
-       main = paste0("Core ID - ",x$Core[1]))
+       main = paste0("Core ID - ",x$Core[1]),#," - EDF=", round(summary(GAM.Mod)$edf),1),
+       ylab = paste0("Cummative disimailarity [",DistUse,"]"),
+       xlab= "kaBP")
   GAM.Mod <- gam(CummDis~s(Age),data=x)
   lines(predict(GAM.Mod)~x$Age,
         lwd=2,
         col="red")
-  legend("topright",
-         paste0("EDF=", round(summary(GAM.Mod)$edf),1))
-  plot.window(xlim = c(0,1),
-              ylim = c(0,1))
-  par(fig=c(0,0.5,0.5,1),
+
+#Plot the Core Accumulative displacement
+## get the cumulative displacement
+   DispInSite <- extract(Displacement,
+                         PollenTRees[which(PollenTRees$dataset.id==x$Core[1])[1],c("long","lat")])[-1]
+   CummDisp <- log10(cumsum(as.numeric(DispInSite[seq(-21,0,by=0.5)%in%x$Age])))
+   if(!is.na(sum(CummDisp))){
+   plot.window(xlim = par()$usr[1:2],
+               ylim = c(min(CummDisp),4))
+   points(y=CummDisp,
+          x=x$Age,
+          type="b",
+          pch=17)
+   GAM.Mod <- gam(CummDisp~s(Age),data=x)
+   lines(predict(GAM.Mod)~x$Age,
+         lwd=2,
+         col="blue")
+   axis(4)
+   mtext("Cumulative displacment [log10(km/100yr)]",
+         side=4,
+         line=2.2)
+   text(x=-5,y=3.97,
+        labels = paste0("Displace ~ Disimilarity\nR2: ",round(summary(lm(x$CummDis~CummDisp))$r.squared,3)))
+   summary(gam(x$CummDis~s(CummDisp)))
+   }
+# Insert a map with the core location  
+  par(fig=c(0.04,0.4,0.64,1),
       new=T)
   plot(NorthAmeric2,
        axes=F)
   box()
   points(PollenTRees[which(PollenTRees$dataset.id==x$Core[1])[1],c("long","lat")],
          pch=19)
-  # Load the displacement Info
-  #abs(min(x$Age)) # start age
-  #Disp <- 
 }
 
-# sort out Sites with the max cumulative disimialrity
-order(sapply(DistList,
-             function(x){max(x[,'CummDis'])}))
-
-# Max dissimilarity
-PollenTReesList[[56]] # Long -130.096; Lat = 57.59498 --> Kinaskan lake (Yukon)
-
-PollenTReesList[[22]] # Long = -144.6583 Lat = 63.94 --> Healy Lake (Alaska)
 
 
+## Plot the distribution of R2 for the cummulative disimilarity vs cumulative displacment relation
+RegSummList <- lapply(c(1:length(DistList))[-c(22,56)],
+                      function(i){
+                        x <- DistList[[i]]  # load the core info
+                        DispInSite <- extract(Displacement,
+                                              PollenTRees[which(PollenTRees$dataset.id==x$Core[1])[1],c("long","lat")])[-1]
+                        CummDisp <- log10(cumsum(as.numeric(DispInSite[seq(-21,0,by=0.5)%in%x$Age])))
+                        ifelse(!is.na(sum(CummDisp)),
+                               summary(lm(x$CummDis~CummDisp))$r.squared,
+                               NA)
+                      })
 
-All_Displacement.tif
-
-# Suitability extract
-a <- rast("./Data/LGM/LatePleistocene/suitability_CLatPleist.tif")
-
-
-b <-project(a,"+proj=longlat +datum=WGS84")
-
-d <- extract(b,PollenTRees[which(PollenTRees$dataset.id==x$Core[1])[1],c("long","lat")])
-
-
-
-
-
-d[seq(-21,0.5,by=0.5)%in%x$Age]
+RegSumm <- tibble(R2vals = do.call("c",RegSummList))
+ggplot(RegSumm,aes(x=R2vals))+
+  geom_density()

@@ -151,7 +151,16 @@ for(TimePer in names(Dates)){#(TimePer<- names(Dates)[2])
     BearingByGF <- do.call("c",BearingByGF)
     names(BearingByGF) <- NamesDtFrm$Name
 # Estimate the Displacement <-  geometric mean of velocities
-    Divergence <- app(BearingByGF,sd,na.rm=T)
+    Divergence <- app(BearingRast,
+                      function(x){
+                        if(is.na(x[1])){out<-NA
+                        } else{x <- x[x!=361]
+                        #x <- round(x,1) 
+                        y <- dist(na.omit(x))
+                        y[y>180] <- 360 - y[y>180]
+                        out <- median(y) }
+                        return((out))
+                      })
 # Save the Displacement raster
     writeRaster(Divergence,
                 filename = paste0("./Data/LGM/Divergence/",
@@ -228,13 +237,61 @@ for(GF.Use in NamesDtFrm$Acro2){#(GF.Use <- NamesDtFrm$Acro2[1])
 print(GF.Use)
 }
 
+## **Fifth**: Estimate the displacement magnitude (i.e., speed).
+# Load the Velocity vectors
+VelocityByGF <- lapply(NamesDtFrm$Acro2,
+                       function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
+                         rast(paste0("./Data/LGM/Velocity/Velocity_Anomaly2/SeqTim_",
+                                     GF.Use,"_Velocity.tif"))
+                       })
+
+# Estimate the Displacement <-  geometric mean of velocities
+Displacement <- lapply(1:43,
+                       function(i){#(i<-1)
+                         TmpRstList <- lapply(VelocityByGF,
+                                              function(x){
+                                                x[[i]]})
+                         TmpRst <- do.call("c",TmpRstList)
+                         return(10^mean(log10(TmpRst)))
+                         })
+Displacement <- do.call("c",Displacement)
+# Save the Displacement raster
+writeRaster(Displacement,
+                  filename = "./Data/LGM/Displacement/Displacement_Anomaly2/SeqTim_Displacement.tif",
+                  overwrite = TRUE)
+# Estimate the Displacement <-  geometric mean of velocities
 
 
 
 
+## **Sixth**: Estimate the Divergence of velocity vectors (i.e., sd).
+BearingByGF <- lapply(NamesDtFrm$Acro2,
+                      function(GF.Use){#(GF.Use <- NamesDtFrm$Acro2[1])
+                        rast(paste0("./Data/LGM/Velocity/Bearing/SeqTim_",
+                                    GF.Use,"_Bearing.tif"))
+                        })
 
-## **Fifth**: Merge all outputs into a single SpatRaster
-                     Out <- c(TempHetRast,SpaceHetRast,BearingRast,Velocity)
-                     names(Out) <- c("TempHet", "SpaceHet", "Bearing", "Velocity")
-                     return(Out)
-                     }
+Divergence <- lapply(1:43,
+                       function(i){#(i<-1)
+                         TmpRstList <- lapply(BearingByGF,
+                                              function(x){
+                                                x[[i]]})
+                         TmpRst <- do.call("c",TmpRstList)
+                         DIverOut<- app(BearingRast,
+                                        function(x){
+                                          if(is.na(x[1])){out<-NA
+                                          } else{x <- x[x!=361]
+                                                 y <- dist(na.omit(x))
+                                                 y[y>180] <- 360 - y[y>180]
+                                                 out <- median(y)
+                                                 }
+                                          return((out))
+                                          })
+                         return(DIverOut)
+                       })
+Divergence <- do.call("c",Divergence)
+# Save the Displacement raster
+writeRaster(Divergence,
+              filename = "./Data/LGM/Divergence/SeqTim_Divergence.tif",
+              overwrite = TRUE)
+
